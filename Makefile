@@ -1,5 +1,5 @@
 CFLAGS=-Wall
-LIBS=-lutil -lpthread
+LIBS=-lutil
 
 objects=$(patsubst %.c, bin/%.o, $(wildcard *.c))
 target=bin/prompt

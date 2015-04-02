@@ -1,4 +1,5 @@
 #include <errno.h>
+#include <fcntl.h>
 #include <poll.h>
 #include <pty.h>
 #include <stdio.h>
@@ -7,12 +8,14 @@
 #include <unistd.h>
 #include <utmp.h>
 
+#include "buffer.h"
+
 char *argv0;
 struct termios term_orig;
 int die = 0;
 
 void
-sig_chld(int) {
+sig_chld(int x) {
 	die = 1;
 }
 
@@ -22,10 +25,6 @@ error(char *msg){
 	exit(1);
 	return 1;
 }
-
-enum {
-	BufSize = 1024,
-};
 
 int
 writeall(int to, char* buf, int sz){
@@ -37,45 +36,86 @@ writeall(int to, char* buf, int sz){
 	return sz;
 }
 
-static int
-inputproc(int pty){
-	char buf[BufSize];
-	int len;
-	struct winsize winp;
-	struct termios termp;
+enum {
+	Stdin = 0,
+	Stdout,
+	Pty,
+	Npoll,
+	Bufsz = 1024,
+};
 
-	termp = term_orig;
+static void
+unblock(int fd){
+	fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK);
+}
+
+static void
+block(int fd){
+	fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) & ~O_NONBLOCK);
+}
+
+int
+loop(int pty){
+	int i, stop = 0;
+
+	struct termios termp = term_orig;
 	cfmakeraw(&termp);
 	termp.c_lflag &= ~ECHO;
 	if(tcsetattr(0, TCSANOW, &termp)!=0) error("tcsetattr");
 
-	while(1){
-		len = read(0, buf, BufSize);
-		if(len > 0){
-			if(writeall(pty, buf, len) <= 0) break;
-		} else if(len < 0 && errno == EINTR){
-			ioctl(0, TIOCGWINSZ, (char *)&winp);
-			ioctl(pty, TIOCSWINSZ, (char *)&winp);
-		} else {
-			break;
-		}
-	}
-	if(tcsetattr(0, TCSADRAIN, &term_orig)!=0) error("tcsetattr");
-	return 0;
-}
+	Buffer in, out;
+	in = buffer_alloc();
+	out = buffer_alloc();
+	if(in == NULL || out == NULL)
+		error("buffer_alloc");
 
-int
-outputproc(int pty){
-	char buf[BufSize];
-	int len;
-	while(1){
-		len = read(pty, buf, BufSize);
-		if(len > 0){
-			if(writeall(0, buf, len) <= 0) break;
-		} else {
-			break;
+	struct pollfd pfd[Npoll];
+	pfd[Stdin].fd = 0;
+	pfd[Stdout].fd = 1;
+	pfd[Pty].fd = pty;
+
+	unblock(0);
+	unblock(1);
+	unblock(pty);
+
+	while(!stop){
+		for(i=0;i<Npoll;i++){
+			pfd[i].events = 0;
 		}
+		if(buffer_space(in))	pfd[Stdin].events |= POLLIN;
+		if(buffer_amount(in))	pfd[Pty].events |= POLLOUT;
+		if(buffer_space(out))	pfd[Pty].events |= POLLIN;
+		if(buffer_amount(out))	pfd[Stdout].events |= POLLOUT;
+
+		poll(pfd, Npoll, -1);
+
+		if(pfd[Stdin].revents & POLLIN){
+			buffer_pull(in, 0);
+		}
+		if(pfd[Pty].revents & POLLOUT){
+			buffer_push(pty, in);
+		}
+
+		if(pfd[Pty].revents & POLLIN){
+			buffer_pull(out, pty);
+		}
+		if(pfd[Stdout].revents & POLLOUT){
+			buffer_push(1, out);
+		}
+
+		stop |= pfd[Stdin].revents & POLLHUP;
+		stop |= pfd[Stdout].revents & POLLHUP;
+		stop |= pfd[Pty].revents & POLLHUP;
 	}
+
+	/* flush output buffer */
+	block(1);
+	while(buffer_amount(out)){
+		if(buffer_push(1, out) <= 0) break;
+	}
+
+	if(tcsetattr(0, TCSADRAIN, &term_orig)!=0) error("tcsetattr");
+
 	return 0;
 }
 
@@ -107,19 +147,11 @@ main(int argc, char** argv){
 
 	switch(fork()){
 	case -1: return error("forkpty");
-	case 0: break;
+	case 0:
+		close(ptm);
+		return child(pts, argc, argv);
 	default:
 		close(pts);
-		return inputproc(ptm);
+		return loop(ptm);
 	}
-
-	switch(fork()){
-	case -1: return error("fork");
-	case 0: break;
-	default:
-		close(pts);
-		return outputproc(ptm);
-	}
-	close(ptm);
-	return child(pts, argc, argv);
 }
