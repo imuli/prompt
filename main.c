@@ -1,7 +1,6 @@
 #include <errno.h>
 #include <poll.h>
 #include <pty.h>
-#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -9,11 +8,19 @@
 #include <utmp.h>
 
 char *argv0;
+struct termios term_orig;
+int die = 0;
 
 void
+sig_chld(int) {
+	die = 1;
+}
+
+int
 error(char *msg){
 	fprintf(stderr, "%s: %s: %s\n", argv0, msg, strerror(errno));
 	exit(1);
+	return 1;
 }
 
 enum {
@@ -30,81 +37,89 @@ writeall(int to, char* buf, int sz){
 	return sz;
 }
 
-int
-fdcat(int to, int from){
-	char buf[BufSize];
-	int total, sz, len;
-	total = 0;
-	while((sz = read(from, buf, BufSize)) > 0){
-		if((len = writeall(to, buf, sz)) < 0)
-			return len;
-		total += sz;
-	}
-	return total;
-}
-
-static void*
-inputthread(void* arg){
-	int* fd = arg;
+static int
+inputproc(int pty){
 	char buf[BufSize];
 	int len;
 	struct winsize winp;
+	struct termios termp;
+
+	termp = term_orig;
+	cfmakeraw(&termp);
+	termp.c_lflag &= ~ECHO;
+	if(tcsetattr(0, TCSANOW, &termp)!=0) error("tcsetattr");
+
 	while(1){
-		len = read(fd[1], buf, BufSize);
+		len = read(0, buf, BufSize);
 		if(len > 0){
-			if(writeall(fd[0], buf, len) <= 0) break;
+			if(writeall(pty, buf, len) <= 0) break;
 		} else if(len < 0 && errno == EINTR){
-			ioctl(fd[1], TIOCGWINSZ, (char *)&winp);
-			ioctl(fd[0], TIOCSWINSZ, (char *)&winp);
+			ioctl(0, TIOCGWINSZ, (char *)&winp);
+			ioctl(pty, TIOCSWINSZ, (char *)&winp);
 		} else {
 			break;
 		}
 	}
-	return NULL;
+	if(tcsetattr(0, TCSADRAIN, &term_orig)!=0) error("tcsetattr");
+	return 0;
 }
 
-void
-master(int pty, int pid){
-	pthread_t thread[2];
-	pthread_attr_t attr;
-	int fds[2];
-
-	if((errno = pthread_attr_init(&attr)) != 0)
-		error("pthread_attr_init");
-	if((errno = pthread_attr_setstacksize(&attr, 16*1024)) != 0)
-		error("pthread_attr_setstacksize");
-
-	fds[0] = pty; fds[1] = 0;
-	if((errno = pthread_create(&thread[0], &attr, inputthread, fds)) != 0)
-		error("pthread_create");
-	fdcat(1, pty);
+int
+outputproc(int pty){
+	char buf[BufSize];
+	int len;
+	while(1){
+		len = read(pty, buf, BufSize);
+		if(len > 0){
+			if(writeall(0, buf, len) <= 0) break;
+		} else {
+			break;
+		}
+	}
+	return 0;
 }
 
-void
-child(int argc, char** argv){
+int
+child(int pty, int argc, char** argv){
+	if(login_tty(pty) < 0)
+		return error("login_tty");
 	execv("/bin/bash", argv+1);
+	return error("exec");
+}
+
+static void
+initpty(int* ptm, int* pts){
+	struct winsize winp;
+
+	if(tcgetattr(0, &term_orig)!=0) error("tcgetattr");
+	ioctl(0, TIOCGWINSZ, (char *)&winp);
+
+	if(openpty(ptm, pts, NULL, &term_orig, &winp) < 0)
+		error("openpty");
 }
 
 int
 main(int argc, char** argv){
-	pid_t pid;
-	int pty;
-	struct termios termp;
+	int ptm, pts;
 	argv0 = *argv;
 
-	if(tcgetattr(0, &termp)!=0) error("tcgetattr");
+	initpty(&ptm, &pts);
 
-	pid = forkpty(&pty, NULL, &termp, NULL/*winp*/);
-	switch(pid){
-	case -1:
-		error("forkpty");
-		break;
-	case 0:
-		child(argc, argv);
-		break;
+	switch(fork()){
+	case -1: return error("forkpty");
+	case 0: break;
 	default:
-		master(pty, pid);
-		break;
+		close(pts);
+		return inputproc(ptm);
 	}
-	return 0;
+
+	switch(fork()){
+	case -1: return error("fork");
+	case 0: break;
+	default:
+		close(pts);
+		return outputproc(ptm);
+	}
+	close(ptm);
+	return child(pts, argc, argv);
 }
