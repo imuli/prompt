@@ -167,87 +167,34 @@ kill_to_start(Editor e, char c){
 	redraw_line(e, c);
 }
 
+struct keyconfig {
+	char c;
+	void (*func)(Editor, char);
+};
+
+static struct keyconfig
+keys_normal[] = {
+	{CTL&'a', start_of_line},
+	{CTL&'b', backward_char},
+	{CTL&'c', interrupt},
+	{CTL&'d', end_of_file},
+	{CTL&'e', end_of_line},
+	{CTL&'f', forward_char},
+	{CTL&'h', backspace_char},
+	{CTL&'k', kill_to_end},
+	{CTL&'l', redraw_line},
+	{CTL&'m', send_line},
+	{CTL&'u', kill_to_start},
+	{0x7f, backspace_char},
+	{0, insert_character},
+};
+
 static void
 editor_char(Editor e, char c){
-	switch(c){
-	case CTL&'a':	/* beginning of line */
-		start_of_line(e, c);
-		break;
-	case CTL&'b':	/* back one */
-		backward_char(e, c);
-		break;
-	case CTL&'c':	/* break */
-		interrupt(e, c);
-		break;
-	case CTL&'d':	/* end text */
-		end_of_file(e, c);
-		break;
-	case CTL&'e':	/* end of line */
-		end_of_line(e, c);
-		break;
-	case CTL&'f':	/* forward one */
-		forward_char(e, c);
-		break;
-	case CTL&'g':	/* bell? */
-		break;
-	case 0x7f:
-	case CTL&'h':	/* backspace */
-		backspace_char(e, c);
-		break;
-	case CTL&'i':	/* tab */
-		break;
-	case CTL&'k':	/* kill to end */
-		kill_to_end(e, c);
-		break;
-	case CTL&'j':	/* Line Feed */
-		break;
-	case CTL&'l':	/* redraw */
-		redraw_line(e, c);
-		break;
-	case CTL&'m':	/* Return */
-		send_line(e,c );
-		break;
-	case CTL&'n':	/* next in history */
-		break;
-	case CTL&'o':	/* */
-		break;
-	case CTL&'p':	/* previous in history */
-		break;
-	case CTL&'q':	/* */
-		break;
-	case CTL&'r':	/* reverse search */
-		break;
-	case CTL&'s':	/* forward search? */
-		break;
-	case CTL&'t':	/* transpose two characters */
-		break;
-	case CTL&'u':	/* kill to start */
-		kill_to_start(e, c);
-		break;
-	case CTL&'v':	/* literal character comes next */
-		break;
-	case CTL&'w':	/* kill last word */
-		break;
-	case CTL&'x':	/* */
-		break;
-	case CTL&'y':	/* paste kill buffer */
-		break;
-	case CTL&'z':	/* */
-		break;
-	case CTL&'[':	/* Escape Sequence */
-		break;
-	case CTL&'|':	/* */
-		break;
-	case CTL&']':	/* */
-		break;
-	case CTL&'^':	/* */
-		break;
-	case CTL&'_':	/* */
-		break;
-	default:
-		insert_character(e, c);
-		break;
-	}
+	struct keyconfig *k;
+	for(k = keys_normal; k->c!=0; k++)
+		if(k->c == c) break;
+	k->func(e, c);
 }
 
 void
