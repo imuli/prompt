@@ -2,7 +2,7 @@ typedef struct {
 	Buffer pty;
 	Buffer term;
 	char *line;
-	int offset;
+	int off, len;
 	int echo;
 }* Editor;
 

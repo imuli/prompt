@@ -25,7 +25,7 @@ editor_init(Buffer pty, Buffer term){
 	e->pty = pty;
 	e->term = term;
 	if((e->line = malloc(Linesize)) == NULL) return editor_free(e);
-	e->offset = 0;
+	e->off = 0;
 	return e;
 }
 
@@ -34,17 +34,23 @@ enum {
 	LF	= 0x0a,
 	CR	= 0x0d,
 	ESC	= 0x1b,
+	CTL	= 0x1f,
 };
 
-int
+static int
+char_width(char c){
+		/* printable characters */
+	if(	(c >= ' ' && c < '\x7f') ||
+		/* utf8, FIXME combining characters */
+		(c >= '\xc2' && c < '\xfe')) return 1;
+	return 0;
+}
+
+static int
 terminal_width(char *s, int n){
 	int t = 0;
 	for(; n>0; n--){
-		/* printable characters */
-		if(*s >= ' ' && *s < '\x7f') t++;
-		/* utf8, disregarding combining characters */
-		if(*s >= '\xc2' && *s < '\xfe') t++;
-		s++;
+		t += char_width(*s++);
 	}
 	return t;
 }
@@ -58,30 +64,62 @@ cursor_shift(Editor e, int n){
 	buffer_add(e->term, cmd, len);
 }
 
-void
+static void
 editor_char(Editor e, char c){
-	enum { Copy = 2, Echo = 4, Flush = 8 } act = 0;
+	enum { Append = 1, Copy = 2, Echo = 4, Flush = 8 } act = 0;
 	switch(c){
-	case EOT:
-		act = Flush|Copy;
+	case CTL&'a':	/* beginning of line */
+		cursor_shift(e, -terminal_width(e->line, e->off));
+		e->off = 0;
+		break;
+	case CTL&'b':	/* back one */
+		if(e->off == 0) break;
+		while(--e->off > 0 && char_width(e->line[e->off]) == 0);
+		cursor_shift(e, -1);
+		break;
+	case CTL&'c':	/* break */
+		e->len = e->off = 0;
+		act = Append|Flush;
+		break;
+	case CTL&'d':	/* end text */
+		act = Append|Flush;
+		break;
+	case CTL&'e':	/* end of line */
+		cursor_shift(e, terminal_width(e->line + e->off, e->len - e->off));
+		e->off = e->len;
+		break;
+	case CTL&'f':	/* forward one */
+		if(e->off == e->len) break;
+		while(++e->off < e->len && char_width(e->line[e->off]) == 0);
+		cursor_shift(e, 1);
+		break;
+	case CTL&'g':	/* bell? */
 		break;
 	case LF:
 	case CR:
-		act = Flush|Copy;
+		act = Append|Flush;
 		break;
 	default:
 		act = Copy|Echo;
 		break;
 	}
 
-	if(act & Copy)
-		e->line[e->offset++] = c;
-	if(act & Echo && e->echo)
-		buffer_add(e->term, &c, 1);
+	if(act & Append){
+		e->line[e->len++] = c;
+	}
+	if(act & Copy){
+		memmove(e->line + e->off + 1, e->line + e->off, e->len - e->off);
+		e->line[e->off++] = c;
+		e->len++;
+	}
+	if(act & Echo && e->echo){
+		buffer_add(e->term, e->line + e->off - 1, e->len - e->off + 1);
+		cursor_shift(e, -terminal_width(e->line + e->off, e->len - e->off));
+	}
 	if(act & Flush){
-		cursor_shift(e, -terminal_width(e->line, e->offset));
-		buffer_add(e->pty, e->line, e->offset);
-		e->offset = 0;
+		cursor_shift(e, -terminal_width(e->line, e->off));
+		buffer_add(e->pty, e->line, e->len);
+		e->len = e->off = 0;
 	}
 }
 
@@ -93,5 +131,5 @@ editor(Editor e, int fd){
 	if(len <= 0) return;
 
 	for(b=buf;len > 0; len--)
-		editor_char(e, *b);
+		editor_char(e, *b++);
 }
