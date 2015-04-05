@@ -29,13 +29,6 @@ editor_init(Buffer pty, Buffer term){
 	return e;
 }
 
-enum {
-	EOT	= 0x04,
-	LF	= 0x0a,
-	CR	= 0x0d,
-	CTL	= 0x1f,
-};
-
 static int
 char_width(unsigned char c){
 		/* printable characters */
@@ -62,6 +55,16 @@ cursor_shift(Editor e, int n){
 	len = snprintf(cmd, 12, "\e[%d%c", n, n<0? 'D' : 'C');
 	buffer_add(e->term, cmd, len);
 }
+
+static void
+erase_line(Editor e){
+	char cmd[]="\e[K";
+	buffer_add(e->term, cmd, sizeof(cmd)-1);
+}
+
+enum {
+	CTL	= 0x1f,
+};
 
 static void
 editor_char(Editor e, char c){
@@ -95,9 +98,70 @@ editor_char(Editor e, char c){
 		break;
 	case CTL&'g':	/* bell? */
 		break;
-	case LF:
-	case CR:
+	case 0x7f:
+	case CTL&'h':	/* backspace */
+		if(e->pos == e->line) break;
+		here = e->pos;
+		while(--e->pos > e->line && char_width(*e->pos) == 0);
+		cursor_shift(e, -2);
+		memmove(e->pos, here, e->end - here);
+		e->end -= here - e->pos;
+		act = Echo;
+		break;
+	case CTL&'i':	/* tab */
+		break;
+	case CTL&'k':	/* kill to end */
+		e->end = e->pos;
+		act = Echo;
+		break;
+	case CTL&'j':	/* Line Feed */
+		break;
+	case CTL&'l':	/* redraw */
+		act = Echo;
+		break;
+	case CTL&'m':	/* Return */
 		act = Append|Flush;
+		break;
+	case CTL&'n':	/* next in history */
+		break;
+	case CTL&'o':	/* */
+		break;
+	case CTL&'p':	/* previous in history */
+		break;
+	case CTL&'q':	/* */
+		break;
+	case CTL&'r':	/* reverse search */
+		break;
+	case CTL&'s':	/* forward search? */
+		break;
+	case CTL&'t':	/* transpose two characters */
+		break;
+	case CTL&'u':	/* kill to start */
+		cursor_shift(e, -terminal_width(e->line, e->pos));
+		memmove(e->line, e->pos, e->end - e->pos);
+		e->end -= e->pos - e->line;
+		e->pos = e->line;
+		act = Echo;
+		break;
+	case CTL&'v':	/* literal character comes next */
+		break;
+	case CTL&'w':	/* kill last word */
+		break;
+	case CTL&'x':	/* */
+		break;
+	case CTL&'y':	/* paste kill buffer */
+		break;
+	case CTL&'z':	/* */
+		break;
+	case CTL&'[':	/* Escape Sequence */
+		break;
+	case CTL&'|':	/* */
+		break;
+	case CTL&']':	/* */
+		break;
+	case CTL&'^':	/* */
+		break;
+	case CTL&'_':	/* */
 		break;
 	default:
 		act = Copy|Echo;
