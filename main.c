@@ -10,6 +10,7 @@
 
 #include "buffer.h"
 #include "termios.h"
+#include "editor.h"
 
 const int debug = 1;
 
@@ -39,14 +40,6 @@ writeall(int to, char* buf, int sz){
 	return sz;
 }
 
-enum {
-	Stdin = 0,
-	Stdout,
-	Pty,
-	Npoll,
-	Bufsz = 1024,
-};
-
 static void
 unblock(int fd){
 	fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK);
@@ -69,9 +62,19 @@ update_termios(int pty, struct termios* termp){
 	return 0;
 }
 
+enum {
+	Stdin = 0,
+	Stdout,
+	Pty,
+	Npoll,
+	Bufsz = 1024,
+};
+
 int
 loop(int pty){
 	int i, stop = 0;
+	int edit = 0;
+	Editor e;
 
 	struct termios termp = term_orig;
 	cfmakeraw(&termp);
@@ -83,6 +86,9 @@ loop(int pty){
 	out = buffer_alloc();
 	if(in == NULL || out == NULL)
 		error("buffer_alloc");
+
+	if((e = editor_init(in, out)) == NULL)
+		error("editor_init");
 
 	struct pollfd pfd[Npoll];
 	pfd[Stdin].fd = 0;
@@ -97,26 +103,31 @@ loop(int pty){
 		for(i=0;i<Npoll;i++){
 			pfd[i].events = 0;
 		}
-		if(buffer_space(in))	pfd[Stdin].events |= POLLIN;
 		if(buffer_amount(in))	pfd[Pty].events |= POLLOUT;
+		if(buffer_space(in))	pfd[Stdin].events |= POLLIN;
 		if(buffer_space(out))	pfd[Pty].events |= POLLIN;
 		if(buffer_amount(out))	pfd[Stdout].events |= POLLOUT;
 
 		poll(pfd, Npoll, -1);
 
-		if(pfd[Stdin].revents & POLLIN){
-			buffer_pull(in, 0);
-		}
-		if(pfd[Pty].revents & POLLOUT){
-			buffer_push(pty, in);
-		}
-
 		if(pfd[Pty].revents & POLLIN){
 			buffer_pull(out, pty);
 			update_termios(pty, &termp);
+			edit = termp.c_lflag & ICANON;
+			e->echo = termp.c_lflag & ECHO;
 		}
 		if(pfd[Stdout].revents & POLLOUT){
 			buffer_push(1, out);
+		}
+
+		if(pfd[Stdin].revents & POLLIN){
+			if(edit)
+				editor(e, 0);
+			else
+				buffer_pull(in, 0);
+		}
+		if(pfd[Pty].revents & POLLOUT){
+			buffer_push(pty, in);
 		}
 
 		stop |= pfd[Stdin].revents & POLLHUP;
