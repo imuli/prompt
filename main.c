@@ -9,6 +9,9 @@
 #include <utmp.h>
 
 #include "buffer.h"
+#include "termios.h"
+
+const int debug = 1;
 
 char *argv0;
 struct termios term_orig;
@@ -52,6 +55,18 @@ unblock(int fd){
 static void
 block(int fd){
 	fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) & ~O_NONBLOCK);
+}
+
+static int
+update_termios(int pty, struct termios* termp){
+	struct termios termq;
+	if(tcgetattr(pty, &termq)!=0) return -1;
+	if(memcmp(termp, &termq, sizeof(termq)) != 0){
+		if(debug) compare_termios(termp, &termq);
+		memcpy(termp, &termq, sizeof(termq));
+		return 1;
+	}
+	return 0;
 }
 
 int
@@ -98,6 +113,7 @@ loop(int pty){
 
 		if(pfd[Pty].revents & POLLIN){
 			buffer_pull(out, pty);
+			update_termios(pty, &termp);
 		}
 		if(pfd[Stdout].revents & POLLOUT){
 			buffer_push(1, out);
