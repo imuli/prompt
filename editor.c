@@ -67,60 +67,145 @@ enum {
 };
 
 static void
-editor_char(Editor e, char c){
-	enum { Append = 1, Copy = 2, Echo = 4, Flush = 8 } act = 0;
+redraw_line(Editor e, char c){
+	if(!e->echo) return;
+	cursor_shift(e, -terminal_width(e->line, e->pos));
+	erase_line(e);
+	buffer_add(e->term, e->line, e->end - e->line);
+	cursor_shift(e, -terminal_width(e->pos, e->end));
+}
+
+static void
+append_character(Editor e, char c){
+	*e->end++ = c;
+}
+
+static void
+insert_character(Editor e, char c){
+	memmove(e->pos + 1, e->pos, e->end - e->pos);
+	*e->pos++ = c;
+	e->end++;
+	redraw_line(e, c);
+}
+
+static void
+flush_line(Editor e, char c){
+	cursor_shift(e, -terminal_width(e->line, e->pos));
+	buffer_add(e->pty, e->line, e->end - e->line);
+	e->pos = e->end = e->line;
+}
+
+static void
+start_of_line(Editor e, char c){
+	cursor_shift(e, -terminal_width(e->line, e->pos));
+	e->pos = e->line;
+}
+
+static void
+backward_char(Editor e, char c){
+	if(e->pos == e->line) return;
+	while(--e->pos > e->line && char_width(*e->pos) == 0);
+	cursor_shift(e, -1);
+}
+
+static void
+interrupt(Editor e, char c){
+	e->pos = e->end = e->line;
+	append_character(e, CTL&'c');
+	flush_line(e, c);
+}
+
+static void
+end_of_file(Editor e, char c){
+	append_character(e, CTL&'d');
+	flush_line(e, c);
+}
+
+static void
+end_of_line(Editor e, char c){
+	cursor_shift(e, terminal_width(e->pos, e->end));
+	e->pos = e->end;
+}
+
+static void
+forward_char(Editor e, char c){
+	if(e->pos == e->end) return;
+	while(++e->pos < e->end && char_width(*e->pos) == 0);
+	cursor_shift(e, 1);
+}
+
+static void
+backspace_char(Editor e, char c){
 	char *here;
+	if(e->pos == e->line) return;
+	here = e->pos;
+	while(--e->pos > e->line && char_width(*e->pos) == 0);
+	cursor_shift(e, -2);
+	memmove(e->pos, here, e->end - here);
+	e->end -= here - e->pos;
+	redraw_line(e, c);
+}
+
+static void
+kill_to_end(Editor e, char c){
+	e->end = e->pos;
+	redraw_line(e, c);
+}
+
+static void
+send_line(Editor e, char c){
+	append_character(e, '\r');
+	flush_line(e, c);
+}
+
+static void
+kill_to_start(Editor e, char c){
+	cursor_shift(e, -terminal_width(e->line, e->pos));
+	memmove(e->line, e->pos, e->end - e->pos);
+	e->end -= e->pos - e->line;
+	e->pos = e->line;
+	redraw_line(e, c);
+}
+
+static void
+editor_char(Editor e, char c){
 	switch(c){
 	case CTL&'a':	/* beginning of line */
-		cursor_shift(e, -terminal_width(e->line, e->pos));
-		e->pos = e->line;
+		start_of_line(e, c);
 		break;
 	case CTL&'b':	/* back one */
-		if(e->pos == e->line) break;
-		while(--e->pos > e->line && char_width(*e->pos) == 0);
-		cursor_shift(e, -1);
+		backward_char(e, c);
 		break;
 	case CTL&'c':	/* break */
-		e->pos = e->end = e->line;
-		act = Append|Flush;
+		interrupt(e, c);
 		break;
 	case CTL&'d':	/* end text */
-		act = Append|Flush;
+		end_of_file(e, c);
 		break;
 	case CTL&'e':	/* end of line */
-		cursor_shift(e, terminal_width(e->pos, e->end));
-		e->pos = e->end;
+		end_of_line(e, c);
 		break;
 	case CTL&'f':	/* forward one */
-		if(e->pos == e->end) break;
-		while(++e->pos < e->end && char_width(*e->pos) == 0);
-		cursor_shift(e, 1);
+		forward_char(e, c);
 		break;
 	case CTL&'g':	/* bell? */
 		break;
 	case 0x7f:
 	case CTL&'h':	/* backspace */
-		if(e->pos == e->line) break;
-		here = e->pos;
-		while(--e->pos > e->line && char_width(*e->pos) == 0);
-		cursor_shift(e, -2);
-		memmove(e->pos, here, e->end - here);
-		e->end -= here - e->pos;
-		act = Echo;
+		backspace_char(e, c);
 		break;
 	case CTL&'i':	/* tab */
 		break;
 	case CTL&'k':	/* kill to end */
-		e->end = e->pos;
-		act = Echo;
+		kill_to_end(e, c);
 		break;
 	case CTL&'j':	/* Line Feed */
 		break;
 	case CTL&'l':	/* redraw */
-		act = Echo;
+		redraw_line(e, c);
 		break;
 	case CTL&'m':	/* Return */
-		act = Append|Flush;
+		send_line(e,c );
 		break;
 	case CTL&'n':	/* next in history */
 		break;
@@ -137,11 +222,7 @@ editor_char(Editor e, char c){
 	case CTL&'t':	/* transpose two characters */
 		break;
 	case CTL&'u':	/* kill to start */
-		cursor_shift(e, -terminal_width(e->line, e->pos));
-		memmove(e->line, e->pos, e->end - e->pos);
-		e->end -= e->pos - e->line;
-		e->pos = e->line;
-		act = Echo;
+		kill_to_start(e, c);
 		break;
 	case CTL&'v':	/* literal character comes next */
 		break;
@@ -164,28 +245,8 @@ editor_char(Editor e, char c){
 	case CTL&'_':	/* */
 		break;
 	default:
-		act = Copy|Echo;
+		insert_character(e, c);
 		break;
-	}
-
-	if(act & Append){
-		*e->end++ = c;
-	}
-	if(act & Copy){
-		memmove(e->pos + 1, e->pos, e->end - e->pos);
-		*e->pos++ = c;
-		e->end++;
-	}
-	if(act & Echo && e->echo){
-		cursor_shift(e, -terminal_width(e->line, e->pos));
-		erase_line(e);
-		buffer_add(e->term, e->line, e->end - e->line);
-		cursor_shift(e, -terminal_width(e->pos, e->end));
-	}
-	if(act & Flush){
-		cursor_shift(e, -terminal_width(e->line, e->pos));
-		buffer_add(e->pty, e->line, e->end - e->line);
-		e->pos = e->end = e->line;
 	}
 }
 
