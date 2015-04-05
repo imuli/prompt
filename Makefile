@@ -11,6 +11,16 @@ $(target): $(objects)
 bin/%.o: %.c | bin
 	cc -c $(CFLAGS) -o $@ $<
 
+tests=$(patsubst test/%.c, bin/test-%, $(wildcard test/*.c))
+test: $(tests)
+	for a in $^; do $$a || exit 1; done
+
+bin/test-%: %.o bin/test-%.o
+	cc $(CFLAGS) -o $@ $^
+
+bin/test-%.o: test/%.c | bin
+	cc -c $(CFLAGS) -o $@ $<
+
 bin:
 	mkdir bin
 
