@@ -1,8 +1,7 @@
 typedef struct {
 	Buffer pty;
 	Buffer term;
-	char *line;
-	int off, len;
+	char *line, *pos, *end;
 	int echo;
 }* Editor;
 
