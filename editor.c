@@ -27,6 +27,7 @@ editor_init(Buffer pty, Buffer term){
 	e->pty = pty;
 	e->term = term;
 	if((e->line = text_new(Linesize)) == NULL) return editor_free(e);
+	if((e->yank = text_new(Linesize)) == NULL) return editor_free(e);
 	return e;
 }
 
@@ -43,6 +44,22 @@ static void
 erase_line(Editor e){
 	char cmd[]="\e[K";
 	buffer_add(e->term, cmd, sizeof(cmd)-1);
+}
+
+static void
+kill(Editor e, int len){
+	if(!e->kill_roll) text_clear(e->yank);
+	e->kill_roll=2;
+	if(len < 0){
+		cursor_shift(e, -e->line->off);
+		text_shift(e->line, len);
+		len = -len;
+		text_shift(e->yank, -e->yank->off);
+	} else {
+		text_shift(e->yank, e->yank->len - e->yank->off);
+	}
+	text_insert(e->yank, e->line->buf + e->line->off, len);
+	text_delete(e->line, len);
 }
 
 enum {
@@ -119,13 +136,14 @@ forward_char(Editor e, Rune c){
 
 static void
 backspace_char(Editor e, Rune c){
+	cursor_shift(e, -1);
 	text_delete(e->line, -1);
 	redraw_line(e, c);
 }
 
 static void
 kill_to_end(Editor e, Rune c){
-	text_delete(e->line, e->line->len - e->line->off);
+	kill(e, e->line->len - e->line->off);
 	redraw_line(e, c);
 }
 
@@ -137,8 +155,14 @@ send_line(Editor e, Rune c){
 
 static void
 kill_to_start(Editor e, Rune c){
-	cursor_shift(e, -e->line->off);
-	text_delete(e->line, -e->line->off);
+	kill(e, -e->line->off);
+	redraw_line(e, c);
+}
+
+static void
+yank(Editor e, Rune c){
+	text_insert(e->line, e->yank->buf, e->yank->len);
+	cursor_shift(e, e->yank->len);
 	redraw_line(e, c);
 }
 
@@ -160,6 +184,7 @@ keys_normal[] = {
 	{CTL&'l', redraw_line},
 	{CTL&'m', send_line},
 	{CTL&'u', kill_to_start},
+	{CTL&'y', yank},
 	{0x7f, backspace_char},
 	{0, insert_character},
 };
@@ -170,6 +195,7 @@ editor_rune(Editor e, Rune r){
 	for(k = keys_normal; k->r!=0; k++)
 		if(k->r == r) break;
 	k->func(e, r);
+	e->kill_roll >>= 1;
 }
 
 void

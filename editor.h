@@ -5,6 +5,8 @@ typedef struct {
 	Buffer term;
 	Text line;
 	int echo;
+	Text yank;
+	int kill_roll;
 }* Editor;
 
 void editor(Editor e, int fd);
