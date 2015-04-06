@@ -10,6 +10,8 @@
 
 #include "buffer.h"
 #include "termios.h"
+#include "rune.h"
+#include "text.h"
 #include "editor.h"
 
 const int debug = 1;

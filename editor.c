@@ -4,16 +4,18 @@
 #include <unistd.h>
 
 #include "buffer.h"
+#include "rune.h"
+#include "text.h"
 #include "editor.h"
 
 enum {
-	Linesize = 1024,
+	Linesize = 128,
 };
 
 void *
 editor_free(Editor e){
 	if(e == NULL) return NULL;
-	if(e->line) free(e->line);
+	if(e->line) text_free(e->line);
 	free(e);
 	return NULL;
 }
@@ -24,27 +26,8 @@ editor_init(Buffer pty, Buffer term){
 	if((e = calloc(1, sizeof(*e))) == NULL) return editor_free(e);
 	e->pty = pty;
 	e->term = term;
-	if((e->line = malloc(Linesize)) == NULL) return editor_free(e);
-	e->end = e->pos = e->line;
+	if((e->line = text_new(Linesize)) == NULL) return editor_free(e);
 	return e;
-}
-
-static int
-char_width(unsigned char c){
-		/* printable characters */
-	if(	(c >= L' ' && c < L'\x80') ||
-		/* utf8, FIXME combining characters */
-		(c >= L'\xc2' && c < L'\xfe')) return 1;
-	return 0;
-}
-
-static int
-terminal_width(const char *s, const char *e){
-	int t = 0;
-	for(; s<e; s++){
-		t += char_width(*s);
-	}
-	return t;
 }
 
 static void
@@ -67,109 +50,101 @@ enum {
 };
 
 static void
-redraw_line(Editor e, char c){
+redraw_line(Editor e, Rune c){
 	if(!e->echo) return;
-	cursor_shift(e, -terminal_width(e->line, e->pos));
+	cursor_shift(e, -e->line->off);
 	erase_line(e);
-	buffer_add(e->term, e->line, e->end - e->line);
-	cursor_shift(e, -terminal_width(e->pos, e->end));
+	text_render(e->line);
+	buffer_add(e->term, e->line->text, e->line->textlen);
+	cursor_shift(e, e->line->off - e->line->len);
 }
 
 static void
-append_character(Editor e, char c){
-	*e->end++ = c;
+append_character(Editor e, Rune c){
+	text_append(e->line, &c, 1);
 }
 
 static void
-insert_character(Editor e, char c){
-	memmove(e->pos + 1, e->pos, e->end - e->pos);
-	*e->pos++ = c;
-	e->end++;
+insert_character(Editor e, Rune c){
+	text_insert(e->line, &c, 1);
 	redraw_line(e, c);
 }
 
 static void
-flush_line(Editor e, char c){
-	cursor_shift(e, -terminal_width(e->line, e->pos));
-	buffer_add(e->pty, e->line, e->end - e->line);
-	e->pos = e->end = e->line;
+flush_line(Editor e, Rune c){
+	cursor_shift(e, -e->line->off);
+	text_render(e->line);
+	buffer_add(e->pty, e->line->text, e->line->textlen);
+	text_clear(e->line);
 }
 
 static void
-start_of_line(Editor e, char c){
-	cursor_shift(e, -terminal_width(e->line, e->pos));
-	e->pos = e->line;
+start_of_line(Editor e, Rune c){
+	int n = -e->line->off;
+	text_shift(e->line, n);
+	cursor_shift(e, n);
 }
 
 static void
-backward_char(Editor e, char c){
-	if(e->pos == e->line) return;
-	while(--e->pos > e->line && char_width(*e->pos) == 0);
-	cursor_shift(e, -1);
+backward_char(Editor e, Rune c){
+	int n = text_shift(e->line, -1);
+	cursor_shift(e, n);
 }
 
 static void
-interrupt(Editor e, char c){
-	e->pos = e->end = e->line;
-	append_character(e, CTL&'c');
+interrupt(Editor e, Rune c){
+	text_clear(e->line);
+	append_character(e, c);
 	flush_line(e, c);
 }
 
 static void
-end_of_file(Editor e, char c){
+end_of_file(Editor e, Rune c){
 	append_character(e, CTL&'d');
 	flush_line(e, c);
 }
 
 static void
-end_of_line(Editor e, char c){
-	cursor_shift(e, terminal_width(e->pos, e->end));
-	e->pos = e->end;
+end_of_line(Editor e, Rune c){
+	int n = e->line->len - e->line->off;
+	cursor_shift(e, n);
+	text_shift(e->line, n);
 }
 
 static void
-forward_char(Editor e, char c){
-	if(e->pos == e->end) return;
-	while(++e->pos < e->end && char_width(*e->pos) == 0);
-	cursor_shift(e, 1);
+forward_char(Editor e, Rune c){
+	int n = text_shift(e->line, 1);
+	cursor_shift(e, n);
 }
 
 static void
-backspace_char(Editor e, char c){
-	char *here;
-	if(e->pos == e->line) return;
-	here = e->pos;
-	while(--e->pos > e->line && char_width(*e->pos) == 0);
-	cursor_shift(e, -2);
-	memmove(e->pos, here, e->end - here);
-	e->end -= here - e->pos;
+backspace_char(Editor e, Rune c){
+	text_delete(e->line, -1);
 	redraw_line(e, c);
 }
 
 static void
-kill_to_end(Editor e, char c){
-	e->end = e->pos;
+kill_to_end(Editor e, Rune c){
+	text_delete(e->line, e->line->len - e->line->off);
 	redraw_line(e, c);
 }
 
 static void
-send_line(Editor e, char c){
+send_line(Editor e, Rune c){
 	append_character(e, '\r');
 	flush_line(e, c);
 }
 
 static void
-kill_to_start(Editor e, char c){
-	cursor_shift(e, -terminal_width(e->line, e->pos));
-	memmove(e->line, e->pos, e->end - e->pos);
-	e->end -= e->pos - e->line;
-	e->pos = e->line;
+kill_to_start(Editor e, Rune c){
+	cursor_shift(e, -e->line->off);
+	text_delete(e->line, -e->line->off);
 	redraw_line(e, c);
 }
 
 struct keyconfig {
-	char c;
-	void (*func)(Editor, char);
+	Rune r;
+	void (*func)(Editor, Rune);
 };
 
 static struct keyconfig
@@ -190,20 +165,24 @@ keys_normal[] = {
 };
 
 static void
-editor_char(Editor e, char c){
+editor_rune(Editor e, Rune r){
 	struct keyconfig *k;
-	for(k = keys_normal; k->c!=0; k++)
-		if(k->c == c) break;
-	k->func(e, c);
+	for(k = keys_normal; k->r!=0; k++)
+		if(k->r == r) break;
+	k->func(e, r);
 }
 
 void
 editor(Editor e, int fd){
-	int len;
+	int len, ul;
 	char buf[256], *b;
+	Rune r;
 	len = read(fd, buf, sizeof(buf));
 	if(len <= 0) return;
 
-	for(b=buf;len > 0; len--)
-		editor_char(e, *b++);
+	for(b=buf;len > 0; len-=ul){
+		ul = rune_utf8(&r, b);
+		if(ul == 0) break; /* FIXME this discards partial runes */
+		editor_rune(e, r);
+	}
 }
