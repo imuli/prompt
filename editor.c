@@ -46,6 +46,17 @@ erase_line(Editor e){
 	buffer_add(e->term, cmd, sizeof(cmd)-1);
 }
 
+static int
+word_len(Editor e, int dir){
+	Rune *r = e->line->buf;
+	int i = e->line->off;
+	if(dir < 0) i--;
+	for(; i>=0 && i<e->line->len && rune_isspace(r[i]); i+=dir);
+	for(; i>=0 && i<e->line->len && !rune_isspace(r[i]); i+=dir);
+	if(dir < 0) i++;
+	return i - e->line->off;
+}
+
 static void
 kill(Editor e, int len){
 	if(!e->kill_roll) text_clear(e->yank);
@@ -160,6 +171,12 @@ kill_to_start(Editor e, Rune c){
 }
 
 static void
+kill_word(Editor e, Rune c){
+	kill(e, word_len(e, -1));
+	redraw_line(e, c);
+}
+
+static void
 yank(Editor e, Rune c){
 	text_insert(e->line, e->yank->buf, e->yank->len);
 	cursor_shift(e, e->yank->len);
@@ -185,6 +202,7 @@ keys_normal[] = {
 	{CTL&'m', send_line},
 	{CTL&'u', kill_to_start},
 	{CTL&'y', yank},
+	{CTL&'w', kill_word},
 	{0x7f, backspace_char},
 	{0, insert_character},
 };
