@@ -193,17 +193,47 @@ struct keyconfig {
 };
 
 static void mode_escape(Editor, Rune);
+static void mode_escape_bra(Editor, Rune);
+static void mode_escape_O(Editor, Rune);
 static void mode_normal(Editor, Rune);
 
 static struct keyconfig
 keys_escape[] = {
 	{'b', backward_word},
 	{'f', forward_word},
+	{'[', mode_escape_bra},
+	{'O', mode_escape_O},
 	{0, mode_normal},
 };
 static void
 mode_escape(Editor e, Rune c){
 	e->mode = keys_escape;
+}
+
+static struct keyconfig
+keys_escape_bra[] = {
+//	{'A', history_previous}, /* up */
+//	{'B', history_next}, /* down */
+	{'C', forward_char},	/* right */
+	{'D', backward_char},	/* left */
+	{0, mode_normal},
+};
+static void
+mode_escape_bra(Editor e, Rune c){
+	e->mode = keys_escape_bra;
+}
+
+static struct keyconfig
+keys_escape_O[] = {
+	{'a', backward_line}, /* ctrl-up */
+	{'b', forward_line}, /* ctrl-down */
+	{'c', forward_word}, /* ctrl-right */
+	{'d', backward_word}, /* ctrl-left */
+	{0, mode_normal},
+};
+static void
+mode_escape_O(Editor e, Rune c){
+	e->mode = keys_escape_O;
 }
 
 static struct keyconfig
