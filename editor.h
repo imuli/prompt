@@ -9,6 +9,8 @@ typedef struct {
 	int kill_roll;
 	int cursor;
 	void *mode;
+	char utf[UTF8_MAX+1];
+	int utflen;
 }* Editor;
 
 void editor(Editor e, int fd);

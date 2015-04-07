@@ -241,17 +241,34 @@ editor_rune(Editor e, Rune r){
 }
 
 void
-editor(Editor e, int fd){
-	int len, ul;
-	char buf[256], *b;
+editor_char(Editor e, char c){
 	Rune r;
+	int len;
+	e->utf[e->utflen++] = c;
+	e->utf[e->utflen] = '\0';
+	len = rune_utf8(&r, e->utf);
+
+	if(r == IncRune && len == e->utflen) return;
+
+	editor_rune(e, r);
+
+	/* the character ended a still-incomplete multibyte rune */
+	if(len < e->utflen){
+		e->utflen = 0;
+		editor_char(e, c);
+	}
+	e->utflen = 0;
+}
+
+void
+editor(Editor e, int fd){
+	int len;
+	char buf[256], *b;
 	len = read(fd, buf, sizeof(buf));
 	if(len <= 0) return;
 
-	for(b=buf;len > 0; len-=ul){
-		ul = rune_utf8(&r, b);
-		if(ul == 0) break; /* FIXME this discards partial runes */
-		editor_rune(e, r);
+	for(b=buf;len > 0; len--){
+		editor_char(e, *b++);
 	}
 }
 
