@@ -1,25 +1,21 @@
-CFLAGS=-Wall
-LIBS=-lutil
+objmap=$(patsubst %.c,bin/%.o,$(subst /,-,$(1)))
+objects=$(call objmap,$(sources))
+targets=$(patsubst %/main.c,bin/%,$(wildcard */main.c))
+sources=$(wildcard */*.c)
 
-objects=$(patsubst %.c, bin/%.o, $(wildcard *.c))
-target=bin/prompt
-all: $(target)
+all: $(targets)
 
-$(target): $(objects)
-	cc $(CFLAGS) -o $@ $^ $(LIBS)
+define targetrule
+$(1): $(filter $(1)-%,$(objects)) | bin
+	cc -o $$@ $$^ $$(CFLAGS) $(shell cat $(notdir $(1))/ldflags 2>/dev/null)
+endef
+$(foreach target,$(targets),$(eval $(call targetrule,$(target))))
 
-bin/%.o: %.c | bin
-	cc -c $(CFLAGS) -o $@ $<
-
-tests=$(patsubst test/%.c, bin/test-%, $(wildcard test/*.c))
-test: $(tests)
-	for a in $^; do $$a || exit 1; done
-
-bin/test-%: %.o bin/test-%.o
-	cc $(CFLAGS) -o $@ $^
-
-bin/test-%.o: test/%.c | bin
-	cc -c $(CFLAGS) -o $@ $<
+define objrule
+$(call objmap,$(1)): $(1) | bin
+	cc -c -o $$@ $$< $$(CFLAGS)
+endef
+$(foreach source,$(sources),$(eval $(call objrule,$(source))))
 
 bin:
 	mkdir bin
