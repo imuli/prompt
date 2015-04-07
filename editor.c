@@ -67,10 +67,6 @@ shift(Editor e, int n){
 	cursor_shift(e, text_shift(e->line, n));
 }
 
-enum {
-	CTL	= 0x1f,
-};
-
 static void
 redraw_line(Editor e, Rune c){
 	if(!e->echo)
@@ -90,6 +86,7 @@ append_character(Editor e, Rune c){
 
 static void
 insert_character(Editor e, Rune c){
+	if(0xd800 <= c && c < 0xdc00) return;
 	text_insert(e->line, &c, 1);
 	redraw_line(e, c);
 }
@@ -141,7 +138,7 @@ interrupt(Editor e, Rune c){
 
 static void
 end_of_file(Editor e, Rune c){
-	append_character(e, CTL&'d');
+	append_character(e, 4);
 	flush_line(e, c);
 }
 
@@ -187,87 +184,195 @@ yank(Editor e, Rune c){
 	redraw_line(e, c);
 }
 
+static void
+noop(Editor e, Rune c){
+}
+
 struct keyconfig {
 	Rune r;
 	void (*func)(Editor, Rune);
 };
 
-static void mode_escape(Editor, Rune);
-static void mode_escape_bra(Editor, Rune);
-static void mode_escape_O(Editor, Rune);
-static void mode_normal(Editor, Rune);
+enum {
+	Normal	= 0x0,
+	Control	= 0x1,
+	Meta	= 0x2,
+	Shift	= 0x4,
 
-static struct keyconfig
-keys_escape[] = {
-	{'b', backward_word},
-	{'f', forward_word},
-	{'[', mode_escape_bra},
-	{'O', mode_escape_O},
-	{0, mode_normal},
+	/* special keys present in unicode */
+	Escape	= 0x1b,
+	Bksp	= 0x7f,
+	/* surrogates should not appear in valid unicode streams,
+	 * so are safe to use for function key definitions.
+	 */
+	Base	= 0xd7ff,
+	NoOp,
+	Up,
+	Down,
+	Left,
+	Right,
+	Prior,
+	Next,
+	Home,
+	End,
+	Find,
+	Sel,
+	Ins,
+	Del,
+	FKey,
 };
-static void
-mode_escape(Editor e, Rune c){
-	e->mode = keys_escape;
-}
-
-static struct keyconfig
-keys_escape_bra[] = {
-//	{'A', history_previous}, /* up */
-//	{'B', history_next}, /* down */
-	{'C', forward_char},	/* right */
-	{'D', backward_char},	/* left */
-	{0, mode_normal},
-};
-static void
-mode_escape_bra(Editor e, Rune c){
-	e->mode = keys_escape_bra;
-}
-
-static struct keyconfig
-keys_escape_O[] = {
-	{'a', backward_line}, /* ctrl-up */
-	{'b', forward_line}, /* ctrl-down */
-	{'c', forward_word}, /* ctrl-right */
-	{'d', backward_word}, /* ctrl-left */
-	{0, mode_normal},
-};
-static void
-mode_escape_O(Editor e, Rune c){
-	e->mode = keys_escape_O;
-}
 
 static struct keyconfig
 keys_normal[] = {
-	{CTL&'a', backward_line},
-	{CTL&'b', backward_char},
-	{CTL&'c', interrupt},
-	{CTL&'d', end_of_file},
-	{CTL&'e', forward_line},
-	{CTL&'f', forward_char},
-	{CTL&'h', kill_backward_char},
-	{CTL&'k', kill_to_end},
-	{CTL&'l', redraw_line},
-	{CTL&'m', send_line},
-	{CTL&'u', kill_to_start},
-	{CTL&'y', yank},
-	{CTL&'w', kill_backward_word},
-	{CTL&'[', mode_escape},
 	{0x7f, backspace_char},
+	{Right,	forward_char},
+	{Left,	backward_char},
+	{Home,	backward_line},
+	{End,	forward_line},
 	{0, insert_character},
 };
-static void
-mode_normal(Editor e, Rune c){
-	e->mode = keys_normal;
-}
+static struct keyconfig
+keys_control[] = {
+	{'a', backward_line},
+	{'b', backward_char},
+	{'c', interrupt},
+	{'d', end_of_file},
+	{'e', forward_line},
+	{'f', forward_char},
+	{'h', kill_backward_char},
+	{'k', kill_to_end},
+	{'l', redraw_line},
+	{'m', send_line},	/* Return */
+	{'u', kill_to_start},
+	{'y', yank},
+	{'w', kill_backward_word},
+	{Up,	backward_line},
+	{Down,	forward_line},
+	{Right,	forward_word},
+	{Left,	backward_word},
+	{0, noop},
+};
+static struct keyconfig
+keys_meta[] = {
+	{'b', backward_word},
+	{'f', forward_word},
+	{0, noop},
+};
+static struct keyconfig
+keys_meta_control[] = {
+	{0, noop},
+};
+static struct keyconfig
+keys_shift[] = {	/* only function keys */
+	{0, noop},
+};
+static struct keyconfig
+*keys[] = {
+	keys_normal,
+	keys_control,
+	keys_meta,
+	keys_meta_control,
+	keys_shift,
+};
+	
 
 static void
 editor_rune(Editor e, Rune r){
 	struct keyconfig *k;
-	for(k = e->mode; k->r!=0; k++)
+	if(e->mode > sizeof(keys)/sizeof(*keys))
+		e->mode = 0;
+	for(k = keys[e->mode]; k->r!=0; k++)
 		if(k->r == r) break;
-	e->mode = keys_normal;
+	e->mode = Normal;
 	k->func(e, r);
 	e->kill_roll >>= 1;
+}
+
+Rune
+function_key[] = {
+	NoOp, Find, Ins, Del, Sel, Prior, Next, Home, End, NoOp, NoOp,
+	NoOp, FKey+1, FKey+2, FKey+3, FKey+4, FKey+5,
+	NoOp, FKey+6, FKey+7, FKey+8, FKey+9, FKey+10,
+	NoOp, FKey+11, FKey+12, FKey+13, FKey+14,
+	NoOp, FKey+15, FKey+16,
+	NoOp, FKey+17, FKey+18, FKey+19, FKey+20,
+};
+Rune
+arrow_key[] = { Up, Down, Right, Left };
+
+void
+editor_sequence(Editor e, Rune c){
+	switch(e->seqmode){
+	case 0:
+		if(c == Escape)
+			e->seqmode = Escape;
+		else if(c < ' '){
+			e->mode |= Control;
+			c += '`';
+		}
+		break;
+	case Escape:
+		switch(c){
+		case '[':
+		case 'O':
+			e->seqmode = c;
+			break;
+		default:
+			e->mode |= Meta;
+			e->seqmode = 0;
+			editor_sequence(e, c);
+			break;
+		}
+		return;
+		break;
+	case '[':
+		/* Ps digits */
+		if('0' <= c && c <= '9'){
+			e->Ps *= 10;
+			e->Ps += c - '0';
+			return;
+		}
+		/* Arrow keys */
+		if('a' <= c && c <= 'd'){
+			e->mode |= Shift;
+			c = arrow_key[c - 'a'];
+		}else if('A' <= c && c <= 'D'){
+			c = arrow_key[c - 'A'];
+		}else switch(c){
+		case 'Z': /* shift-tab */
+			e->mode |= Shift|Control;
+			c = 'i';
+			break;
+		/* function keys */
+		case '@':
+			e->mode |= Shift;
+		case '^':
+			e->mode |= Control;
+			if(e->Ps < sizeof(function_key)/sizeof(Rune))
+				c = function_key[e->Ps];
+			break;
+		case '$':
+			e->mode |= Shift;
+		case '~':
+			if(e->Ps < sizeof(function_key)/sizeof(Rune))
+				c = function_key[e->Ps];
+			break;
+		}
+		e->Ps = 0;
+		break;
+	case 'O':
+		/* Arrow keys with control */
+		if('a' <= c && c <= 'd'){
+			e->mode |= Control;
+			c = arrow_key[c - 'a'];
+		}else if('A' <= c && c <= 'A'){
+			e->mode |= Shift|Control;
+			c = arrow_key[c - 'A'];
+		}
+		break;
+	}
+	e->seqmode = 0;
+	editor_rune(e, c);
 }
 
 void
@@ -280,7 +385,7 @@ editor_char(Editor e, char c){
 
 	if(r == IncRune && len == e->utflen) return;
 
-	editor_rune(e, r);
+	editor_sequence(e, r);
 
 	/* the character ended a still-incomplete multibyte rune */
 	if(len < e->utflen){
@@ -310,7 +415,6 @@ editor_init(Buffer pty, Buffer term){
 	e->term = term;
 	if((e->line = text_new(Linesize)) == NULL) return editor_free(e);
 	if((e->yank = text_new(Linesize)) == NULL) return editor_free(e);
-	e->mode = keys_normal;
 	return e;
 }
 

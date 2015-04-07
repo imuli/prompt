@@ -8,9 +8,11 @@ typedef struct {
 	Text yank;
 	int kill_roll;
 	int cursor;
-	void *mode;
+	int mode;
 	char utf[UTF8_MAX+1];
 	int utflen;
+	int seqmode;
+	int Ps;
 }* Editor;
 
 void editor(Editor e, int fd);
