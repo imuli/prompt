@@ -9,6 +9,7 @@ typedef unsigned int Rune;
 #define RUNE_MAX 0xffffffff
 #define UTF8_MAX 7
 enum {
+	IncRune = 0xfffe,
 	BadRune = 0xffff,
 };
 
