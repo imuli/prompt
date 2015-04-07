@@ -8,6 +8,7 @@ typedef struct {
 	Text yank;
 	int kill_roll;
 	int cursor;
+	void *mode;
 }* Editor;
 
 void editor(Editor e, int fd);

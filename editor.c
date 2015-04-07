@@ -20,17 +20,6 @@ editor_free(Editor e){
 	return NULL;
 }
 
-Editor
-editor_init(Buffer pty, Buffer term){
-	Editor e;
-	if((e = calloc(1, sizeof(*e))) == NULL) return editor_free(e);
-	e->pty = pty;
-	e->term = term;
-	if((e->line = text_new(Linesize)) == NULL) return editor_free(e);
-	if((e->yank = text_new(Linesize)) == NULL) return editor_free(e);
-	return e;
-}
-
 static void
 cursor_shift(Editor e, int n){
 	char cmd[12];
@@ -203,6 +192,20 @@ struct keyconfig {
 	void (*func)(Editor, Rune);
 };
 
+static void mode_escape(Editor, Rune);
+static void mode_normal(Editor, Rune);
+
+static struct keyconfig
+keys_escape[] = {
+	{'b', backward_word},
+	{'f', forward_word},
+	{0, mode_normal},
+};
+static void
+mode_escape(Editor e, Rune c){
+	e->mode = keys_escape;
+}
+
 static struct keyconfig
 keys_normal[] = {
 	{CTL&'a', backward_line},
@@ -218,15 +221,21 @@ keys_normal[] = {
 	{CTL&'u', kill_to_start},
 	{CTL&'y', yank},
 	{CTL&'w', kill_backward_word},
+	{CTL&'[', mode_escape},
 	{0x7f, backspace_char},
 	{0, insert_character},
 };
+static void
+mode_normal(Editor e, Rune c){
+	e->mode = keys_normal;
+}
 
 static void
 editor_rune(Editor e, Rune r){
 	struct keyconfig *k;
-	for(k = keys_normal; k->r!=0; k++)
+	for(k = e->mode; k->r!=0; k++)
 		if(k->r == r) break;
+	e->mode = keys_normal;
 	k->func(e, r);
 	e->kill_roll >>= 1;
 }
@@ -245,3 +254,16 @@ editor(Editor e, int fd){
 		editor_rune(e, r);
 	}
 }
+
+Editor
+editor_init(Buffer pty, Buffer term){
+	Editor e;
+	if((e = calloc(1, sizeof(*e))) == NULL) return editor_free(e);
+	e->pty = pty;
+	e->term = term;
+	if((e->line = text_new(Linesize)) == NULL) return editor_free(e);
+	if((e->yank = text_new(Linesize)) == NULL) return editor_free(e);
+	e->mode = keys_normal;
+	return e;
+}
+
