@@ -7,6 +7,7 @@ typedef struct {
 	int echo;
 	Text yank;
 	int kill_roll;
+	int cursor;
 }* Editor;
 
 void editor(Editor e, int fd);

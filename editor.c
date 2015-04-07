@@ -38,6 +38,7 @@ cursor_shift(Editor e, int n){
 	if(n==0) return;
 	len = snprintf(cmd, 12, "\e[%d%c", n, n<0? 'D' : 'C');
 	buffer_add(e->term, cmd, len);
+	e->cursor += n;
 }
 
 static void
@@ -62,7 +63,6 @@ kill(Editor e, int len){
 	if(!e->kill_roll) text_clear(e->yank);
 	e->kill_roll=2;
 	if(len < 0){
-		cursor_shift(e, -e->line->off);
 		text_shift(e->line, len);
 		len = -len;
 		text_shift(e->yank, -e->yank->off);
@@ -79,11 +79,13 @@ enum {
 
 static void
 redraw_line(Editor e, Rune c){
-	if(!e->echo) return;
-	cursor_shift(e, -e->line->off);
-	erase_line(e);
+	if(!e->echo)
+		return cursor_shift(e, e->line->off-e->cursor);
+	cursor_shift(e, -e->cursor);
 	text_render(e->line);
 	buffer_add(e->term, e->line->text, e->line->textlen);
+	e->cursor += e->line->len;
+	erase_line(e);
 	cursor_shift(e, e->line->off - e->line->len);
 }
 
@@ -147,7 +149,6 @@ forward_char(Editor e, Rune c){
 
 static void
 backspace_char(Editor e, Rune c){
-	cursor_shift(e, -1);
 	text_delete(e->line, -1);
 	redraw_line(e, c);
 }
@@ -179,7 +180,6 @@ kill_word(Editor e, Rune c){
 static void
 yank(Editor e, Rune c){
 	text_insert(e->line, e->yank->buf, e->yank->len);
-	cursor_shift(e, e->yank->len);
 	redraw_line(e, c);
 }
 
