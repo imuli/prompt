@@ -172,8 +172,14 @@ kill_to_start(Editor e, Rune c){
 }
 
 static void
-kill_word(Editor e, Rune c){
+kill_backward_word(Editor e, Rune c){
 	kill(e, word_len(e, -1));
+	redraw_line(e, c);
+}
+
+static void
+kill_backward_char(Editor e, Rune c){
+	kill(e, -1);
 	redraw_line(e, c);
 }
 
@@ -196,13 +202,13 @@ keys_normal[] = {
 	{CTL&'d', end_of_file},
 	{CTL&'e', end_of_line},
 	{CTL&'f', forward_char},
-	{CTL&'h', backspace_char},
+	{CTL&'h', kill_backward_char},
 	{CTL&'k', kill_to_end},
 	{CTL&'l', redraw_line},
 	{CTL&'m', send_line},
 	{CTL&'u', kill_to_start},
 	{CTL&'y', yank},
-	{CTL&'w', kill_word},
+	{CTL&'w', kill_backward_word},
 	{0x7f, backspace_char},
 	{0, insert_character},
 };
