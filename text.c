@@ -21,8 +21,7 @@ text_new(int size){
 	/* t->off = t->len = 0; */
 	if((t->buf = malloc(size*sizeof(Rune))) == NULL) return text_free(t);
 	t->sz = size;
-	if((t->text = malloc(size)) == NULL) return text_free(t);
-	t->textsz = size;
+	t->textsz = 0;
 	return t;
 }
 
@@ -94,13 +93,13 @@ text_delete(Text t, int len){
 
 int
 text_render(Text t){
-	char *text;
 	t->buf[t->len] = 0;
 	int n = runeschars(t->buf);
 	if(t->textsz < n+1){
-		text = realloc(t->text, n*3/2+1);
-		if(text == NULL) return 0;
-		t->text = text;
+		if(t->text)
+			free(t->text);
+		t->text = malloc(n*3/2+1);
+		if(t->text == NULL) return 0;
 		t->textsz = n*3/2+1;
 	}
 	utf8s_runes(t->text, t->buf);
