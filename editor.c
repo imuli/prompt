@@ -73,6 +73,11 @@ kill(Editor e, int len){
 	text_delete(e->line, len);
 }
 
+static void
+shift(Editor e, int n){
+	cursor_shift(e, text_shift(e->line, n));
+}
+
 enum {
 	CTL	= 0x1f,
 };
@@ -109,16 +114,33 @@ flush_line(Editor e, Rune c){
 }
 
 static void
-start_of_line(Editor e, Rune c){
-	int n = -e->line->off;
-	text_shift(e->line, n);
-	cursor_shift(e, n);
+backward_line(Editor e, Rune c){
+	shift(e, -e->line->off);
+}
+
+static void
+backward_word(Editor e, Rune c){
+	shift(e, word_len(e, -1));
 }
 
 static void
 backward_char(Editor e, Rune c){
-	int n = text_shift(e->line, -1);
-	cursor_shift(e, n);
+	shift(e, -1);
+}
+
+static void
+forward_word(Editor e, Rune c){
+	shift(e, word_len(e, 1));
+}
+
+static void
+forward_line(Editor e, Rune c){
+	shift(e, e->line->len - e->line->off);
+}
+
+static void
+forward_char(Editor e, Rune c){
+	shift(e, 1);
 }
 
 static void
@@ -132,19 +154,6 @@ static void
 end_of_file(Editor e, Rune c){
 	append_character(e, CTL&'d');
 	flush_line(e, c);
-}
-
-static void
-end_of_line(Editor e, Rune c){
-	int n = e->line->len - e->line->off;
-	cursor_shift(e, n);
-	text_shift(e->line, n);
-}
-
-static void
-forward_char(Editor e, Rune c){
-	int n = text_shift(e->line, 1);
-	cursor_shift(e, n);
 }
 
 static void
@@ -196,11 +205,11 @@ struct keyconfig {
 
 static struct keyconfig
 keys_normal[] = {
-	{CTL&'a', start_of_line},
+	{CTL&'a', backward_line},
 	{CTL&'b', backward_char},
 	{CTL&'c', interrupt},
 	{CTL&'d', end_of_file},
-	{CTL&'e', end_of_line},
+	{CTL&'e', forward_line},
 	{CTL&'f', forward_char},
 	{CTL&'h', kill_backward_char},
 	{CTL&'k', kill_to_end},
