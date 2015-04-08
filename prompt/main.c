@@ -9,9 +9,6 @@
 #include <utmp.h>
 
 #include "buffer.h"
-#include "termios.h"
-
-const int debug = 0;
 
 char *argv0;
 struct termios term_orig;
@@ -85,7 +82,6 @@ update_termios(int pty, struct termios* termp){
 	struct termios termq;
 	if(tcgetattr(pty, &termq)!=0) return -1;
 	if(memcmp(termp, &termq, sizeof(termq)) != 0){
-		if(debug) compare_termios(termp, &termq);
 		memcpy(termp, &termq, sizeof(termq));
 		return 1;
 	}
