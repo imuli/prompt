@@ -386,7 +386,8 @@ handle_rune(Rune r){
 			if(k->r == r) break;
 		mode_norm(r);
 		k->func(r);
-		kill_roll >>= 1;
+		if(mode == keys_norm)
+			kill_roll >>= 1;
 	}
 }
 

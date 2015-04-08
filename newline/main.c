@@ -51,7 +51,7 @@ setsignals(void){
 int
 newline_in(char *str, int len){
 	int i;
-	if((i = read(0, str, len)) < 0) finish(1);
+	if((i = read(0, str, len)) <= 0) finish(1);
 	return i;
 }
 
