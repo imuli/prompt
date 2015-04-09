@@ -9,6 +9,7 @@
 
 enum {
 	Linesize = 128,
+	HistorySize = 128,
 };
 
 Text line;
@@ -89,13 +90,56 @@ insert_character(Rune c){
 	redraw_line(c);
 }
 
+static struct {
+	int cur;
+	/* forth style strings of runes */
+	Rune *line[HistorySize];
+} hist;
+
+static void
+history_shift(int n){
+	Rune* thisline;
+
+	if((thisline = malloc((line->len+1) * sizeof(Rune))) == NULL) return;
+	memcpy(thisline+1, line->buf, line->len * sizeof(Rune));
+	*thisline = line->len;
+
+	if(hist.line[hist.cur] != NULL)
+		free(hist.line[hist.cur]);
+	hist.line[hist.cur] = thisline;
+
+	hist.cur+=n;
+	if(hist.cur < 0)
+		hist.cur += HistorySize;
+	if(hist.cur >= HistorySize)
+		hist.cur -= HistorySize;
+
+	cursor_shift(-cursor);
+	text_clear(line);
+	if(hist.line[hist.cur] != NULL)
+		text_insert(line, hist.line[hist.cur]+1, *hist.line[hist.cur]);
+}
+
+static void
+history_previous(Rune c){
+	history_shift(-1);
+	redraw_line(c);
+}
+
+static void
+history_next(Rune c){
+	history_shift(1);
+	redraw_line(c);
+}
+
 static void
 flush_line(Rune c){
 	cursor_shift(-line->off);
 	erase_line();
 	text_render(line);
+	line->len--; /* FIXME! store history without the flushing character! */
+	history_next(c);
 	newline_lineout(line->text, line->textlen);
-	text_clear(line);
 }
 
 static void
@@ -223,6 +267,8 @@ static void mode_meta(Rune);
 static struct keyconfig
 keys_norm[] = {
 	{0x7f, backspace_char},
+	{Up,	history_previous},
+	{Down,	history_next},
 	{Right,	forward_char},
 	{Left,	backward_char},
 	{Home,	backward_line},
@@ -244,6 +290,8 @@ keys_ctrl[] = {
 	{'k', kill_to_end},
 	{'l', redraw_line},
 	{'m', send_line},	/* Return */
+	{'n', history_next},
+	{'p', history_previous},
 	{'u', kill_to_start},
 	{'y', insert_yank},
 	{'w', kill_backward_word},
