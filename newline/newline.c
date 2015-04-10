@@ -158,6 +158,20 @@ backward_char(Rune c){
 }
 
 static void
+echo_off(Rune c){
+	echo = 0;
+	cursor_shift(-line->off);
+	erase_line();
+	redraw_line(c);
+}
+
+static void
+echo_on(Rune c){
+	echo = 1;
+	redraw_line(c);
+}
+
+static void
 forward_word(Rune c){
 	shift(word_len(1));
 }
@@ -292,6 +306,8 @@ keys_ctrl[] = {
 	{'m', send_line},	/* Return */
 	{'n', history_next},
 	{'p', history_previous},
+	{'q', echo_on},
+	{'s', echo_off},
 	{'u', kill_to_start},
 	{'y', insert_yank},
 	{'w', kill_backward_word},
