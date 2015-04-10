@@ -88,6 +88,17 @@ update_termios(int pty, struct termios* termp){
 	return 0;
 }
 
+static void
+state_changes(Buffer b, struct termios* termp){
+	static int echo = ECHO;
+	static const char echo_stop = '\x13';
+	static const char echo_start = '\x11';
+	if(echo ^ termp->c_lflag & ECHO){
+		buffer_add(b, echo ? &echo_stop : &echo_start, 1);
+		echo = termp->c_lflag & ECHO;
+	}
+}
+
 enum {
 	Stdin = 0,
 	Stdout,
@@ -169,10 +180,13 @@ loop(int pty){
 			buffer_pull(out, pty);
 		if(pfd[NLout].revents & POLLIN)
 			buffer_pull(out, nlout);
-		if(pfd[Stdin].revents & POLLIN)
-			buffer_pull(in, 0);
 		if(pfd[NLline].revents & POLLIN)
 			buffer_pull(nl, nlline);
+		if(pfd[Stdin].revents & POLLIN){
+			if(edit)
+				state_changes(in, &termp);
+			buffer_pull(in, 0);
+		}
 
 		if(pfd[Stdout].revents & POLLOUT)
 			buffer_push(1, out);
