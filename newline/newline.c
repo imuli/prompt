@@ -138,8 +138,9 @@ flush_line(Rune c){
 	erase_line();
 	text_render(line);
 	line->len--; /* FIXME! store history without the flushing character! */
-	history_next(c);
+	history_shift(1);
 	newline_lineout(line->text, line->textlen);
+	redraw_line(c);
 }
 
 static void
@@ -213,7 +214,7 @@ kill_to_end(Rune c){
 
 static void
 send_line(Rune c){
-	append_character('\r');
+	append_character('\n');
 	flush_line(c);
 }
 

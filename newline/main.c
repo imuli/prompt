@@ -22,6 +22,7 @@ struct termios termp;
 static void
 raw_mode(struct termios termp){
 	cfmakeraw(&termp);
+	termp.c_oflag |= OPOST;
 	tcsetattr(0, TCSANOW, &termp);
 }
 
