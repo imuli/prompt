@@ -142,6 +142,11 @@ history_previous(Rune c){
 }
 
 static void
+history_this(Rune c){
+	history_load();
+}
+
+static void
 history_next(Rune c){
 	history_shift(1);
 }
@@ -318,6 +323,7 @@ keys_ctrl[] = {
 	{'u', kill_to_start},
 	{'y', insert_yank},
 	{'w', kill_backward_word},
+	{'z', history_this},
 	{Up,	backward_line},
 	{Down,	forward_line},
 	{Right,	forward_word},
