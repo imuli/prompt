@@ -35,6 +35,18 @@ erase_line(void){
 	newline_out(cmd, sizeof(cmd)-1);
 }
 
+static void
+redraw_line(void){
+	if(!echo)
+		return cursor_shift(line->off-cursor);
+	cursor_shift(-cursor);
+	text_render(line);
+	newline_out(line->text, line->textlen);
+	cursor += line->len;
+	erase_line();
+	cursor_shift(line->off - line->len);
+}
+
 static int
 word_len(int dir){
 	Rune *r = line->buf;
@@ -59,23 +71,12 @@ kill(int len){
 	}
 	text_insert(yank, line->buf + line->off, len);
 	text_delete(line, len);
+	redraw_line();
 }
 
 static void
 shift(int n){
 	cursor_shift(text_shift(line, n));
-}
-
-static void
-redraw_line(Rune c){
-	if(!echo)
-		return cursor_shift(line->off-cursor);
-	cursor_shift(-cursor);
-	text_render(line);
-	newline_out(line->text, line->textlen);
-	cursor += line->len;
-	erase_line();
-	cursor_shift(line->off - line->len);
 }
 
 static void
@@ -87,7 +88,7 @@ static void
 insert_character(Rune c){
 	if(0xd800 <= c && c < 0xdc00) return;
 	text_insert(line, &c, 1);
-	redraw_line(c);
+	redraw_line();
 }
 
 static struct {
@@ -118,29 +119,28 @@ history_shift(int n){
 	text_clear(line);
 	if(hist.line[hist.cur] != NULL)
 		text_insert(line, hist.line[hist.cur]+1, *hist.line[hist.cur]);
+	redraw_line();
 }
 
 static void
 history_previous(Rune c){
 	history_shift(-1);
-	redraw_line(c);
 }
 
 static void
 history_next(Rune c){
 	history_shift(1);
-	redraw_line(c);
 }
 
 static void
 flush_line(Rune c){
+	append_character(c);
 	cursor_shift(-line->off);
 	erase_line();
 	text_render(line);
-	line->len--; /* FIXME! store history without the flushing character! */
-	history_shift(1);
 	newline_lineout(line->text, line->textlen);
-	redraw_line(c);
+	line->len--; /* FIXME! store history without the flushing character! */
+	history_next(c);
 }
 
 static void
@@ -163,13 +163,13 @@ echo_off(Rune c){
 	echo = 0;
 	cursor_shift(-line->off);
 	erase_line();
-	redraw_line(c);
+	redraw_line();
 }
 
 static void
 echo_on(Rune c){
 	echo = 1;
-	redraw_line(c);
+	redraw_line();
 }
 
 static void
@@ -190,56 +190,49 @@ forward_char(Rune c){
 static void
 interrupt(Rune c){
 	text_clear(line);
-	append_character(c);
-	flush_line(c);
+	flush_line(3);
 }
 
 static void
 end_of_file(Rune c){
-	append_character(4);
-	flush_line(c);
+	flush_line(4);
 }
 
 static void
 backspace_char(Rune c){
 	text_delete(line, -1);
-	redraw_line(c);
+	redraw_line();
 }
 
 static void
 kill_to_end(Rune c){
 	kill(line->len - line->off);
-	redraw_line(c);
 }
 
 static void
 send_line(Rune c){
-	append_character('\n');
-	flush_line(c);
+	flush_line('\n');
 }
 
 static void
 kill_to_start(Rune c){
 	kill(-line->off);
-	redraw_line(c);
 }
 
 static void
 kill_backward_word(Rune c){
 	kill(word_len(-1));
-	redraw_line(c);
 }
 
 static void
 kill_backward_char(Rune c){
 	kill(-1);
-	redraw_line(c);
 }
 
 static void
 insert_yank(Rune c){
 	text_insert(line, yank->buf, yank->len);
-	redraw_line(c);
+	redraw_line();
 }
 
 enum {
@@ -303,7 +296,6 @@ keys_ctrl[] = {
 	{'f', forward_char},
 	{'h', kill_backward_char},
 	{'k', kill_to_end},
-	{'l', redraw_line},
 	{'m', send_line},	/* Return */
 	{'n', history_next},
 	{'p', history_previous},
