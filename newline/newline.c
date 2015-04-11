@@ -98,8 +98,9 @@ static struct {
 } hist;
 
 static void
-history_shift(int n){
+history_save(){
 	Rune* thisline;
+	if(!line->len || !echo) return;
 
 	if((thisline = malloc((line->len+1) * sizeof(Rune))) == NULL) return;
 	memcpy(thisline+1, line->buf, line->len * sizeof(Rune));
@@ -108,18 +109,31 @@ history_shift(int n){
 	if(hist.line[hist.cur] != NULL)
 		free(hist.line[hist.cur]);
 	hist.line[hist.cur] = thisline;
+}
 
+static void
+history_advance(int n){
 	hist.cur+=n;
 	if(hist.cur < 0)
 		hist.cur += HistorySize;
 	if(hist.cur >= HistorySize)
 		hist.cur -= HistorySize;
+}
 
+static void
+history_load(){
 	cursor_shift(-cursor);
 	text_clear(line);
 	if(hist.line[hist.cur] != NULL)
 		text_insert(line, hist.line[hist.cur]+1, *hist.line[hist.cur]);
 	redraw_line();
+}
+
+static void
+history_shift(int n){
+	history_save();
+	history_advance(n);
+	history_load();
 }
 
 static void
