@@ -218,8 +218,14 @@ end_of_file(Rune c){
 }
 
 static void
-backspace_char(Rune c){
+delete_backward_char(Rune c){
 	text_delete(line, -1);
+	redraw_line();
+}
+
+static void
+delete_forward_char(Rune c){
+	text_delete(line, 1);
 	redraw_line();
 }
 
@@ -293,7 +299,8 @@ static void mode_meta(Rune);
 
 static struct keyconfig
 keys_norm[] = {
-	{0x7f, backspace_char},
+	{0x7f,	delete_backward_char},
+	{Del,	delete_forward_char},
 	{Up,	history_previous},
 	{Down,	history_next},
 	{Right,	forward_char},
