@@ -53,16 +53,27 @@ display_rune(Rune r){
 	return r;
 }
 
+static char display_intro_replaced[] = "\x1b[1;32m";
+static char display_intro_normal[] = "\x1b[0m";
+enum { SPECIAL_MAX = sizeof(display_intro_replaced) + sizeof(display_intro_normal) };
 static int
 display_utf8_rune(char *u, Rune r){
+	static int replaced;
 	Rune d = display_rune(r);
+	char *ue;
+	if(d != r){
+		ue = stpcpy(u, display_intro_replaced);
+		ue += utf8_rune(ue, d);
+		ue = stpcpy(ue, display_intro_normal);
+		return ue-u;
+	}
 	return utf8_rune(u, d);
 }
 
 static void
 display_render(Text t){
 	int i, len;
-	char buf[UTF8_MAX];
+	char buf[UTF8_MAX+SPECIAL_MAX];
 	for(i=0;i<t->len;i++){
 		len = display_utf8_rune(buf, t->buf[i]);
 		newline_out(buf, len);
