@@ -1,0 +1,29 @@
+prompt(1) -- consistant line editing
+====================================
+
+## SYNOPSIS
+
+`prompt` [_command_...]
+
+## DESCRIPTION
+
+`prompt` sits between your terminal and your shell session and notices when you are being prompted to enter a line. Instead of the kernel canonical terminal mode, you edit the line with newline(1).
+
+## OPTIONS
+
+No options may be specified, executes _command_.
+
+The line editing program may be overridden by placing a custom `newline` early in your PATH.
+
+## BUGS
+
+Lots. This is pre-release software.
+
+## COPYRIGHT
+
+Public Domain
+
+## SEE ALSO
+
+newline(1)
+

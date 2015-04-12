@@ -1,0 +1,135 @@
+.\" generated with Ronn/v0.7.3
+.\" http://github.com/rtomayko/ronn/tree/0.7.3
+.
+.TH "NEWLINE" "1" "April 2015" "" ""
+.
+.SH "NAME"
+\fBnewline\fR \- read edited lines
+.
+.SH "SYNOPSIS"
+\fBnewline\fR [options] [\fIn\fR]
+.
+.SH "DESCRIPTION"
+\fBnewline\fR interactively edits \fIn\fR lines (one at a time) and copies them stdout\. It supports Unicode (including characters beyond the BMP and combining characters), history, kill and yank, and unambiguous display of inline control characters\.
+.
+.P
+The number of lines to copy, \fIn\fR, must come last\. It defaults to \fB1\fR and may be \fBinf\fR to copy an arbitrary number of lines\.
+.
+.SH "OPTIONS"
+All options are ignored at this time\.
+.
+.SH "COMMANDS"
+Below, \fBC\-x\fR indicates Control\-x, likewise \fBM\-x\fR for Alt\-x (Or more preciesly, \fBESC x\fR)\.
+.
+.SS "Movement:"
+.
+.IP "\(bu" 4
+Move backward one character\. \fBC\-b\fR, \fBLeft\fR
+.
+.IP "\(bu" 4
+Move forward one character\. \fBC\-f\fR, \fBRight\fR
+.
+.IP "\(bu" 4
+Move backward one word\. \fBM\-b\fR, \fBC\-Left\fR
+.
+.IP "\(bu" 4
+Move forward one word\. \fBM\-f\fR, \fBC\-Right\fR
+.
+.IP "\(bu" 4
+Move backward the whole line\. \fBC\-a\fR, \fBHome\fR
+.
+.IP "\(bu" 4
+Move forward the whole line\. \fBC\-e\fR, \fBEnd\fR
+.
+.IP "" 0
+.
+.SS "Delete, Kill, and Yank:"
+Delete and Kill both remove characters from the line, however characters removed with a Kill can be returned in a different place with a Yank\. Multiple Kills in a row will accumulate and may be Yanked all togother\.
+.
+.IP "\(bu" 4
+Delete backward one character\. \fBBackspace\fR
+.
+.IP "\(bu" 4
+Delete forward one character\. \fBDelete\fR
+.
+.IP "\(bu" 4
+Kill backward one character\. \fBC\-h\fR
+.
+.IP "\(bu" 4
+Kill backward one word\. \fBC\-w\fR
+.
+.IP "\(bu" 4
+Kill backward the whole line\. \fBC\-u\fR
+.
+.IP "\(bu" 4
+Kill forward the whole line\. \fBC\-k\fR
+.
+.IP "\(bu" 4
+Yank, insert previously killed text\. \fBC\-y\fR
+.
+.IP "" 0
+.
+.SS "Sending text:"
+.
+.IP "\(bu" 4
+Send with Newline\. \fBC\-m\fR, \fBEnter\fR
+.
+.IP "\(bu" 4
+Send with End of Text\. \fBC\-d\fR
+.
+.IP "\(bu" 4
+Send empty line with interrupt\. \fBC\-c\fR
+.
+.IP "" 0
+.
+.SS "History:"
+.
+.IP "\(bu" 4
+Previous line in history\. \fBC\-p\fR, \fBUp\fR
+.
+.IP "\(bu" 4
+Next line in history\. \fBC\-n\fR, \fBDown\fR
+.
+.IP "\(bu" 4
+Undo all changes to this line\. \fBC\-z\fR
+.
+.IP "" 0
+.
+.SS "Miscellaneous:"
+.
+.IP "\(bu" 4
+Enable line echo: \fBC\-q\fR
+.
+.IP "\(bu" 4
+Disable line echo: \fBC\-S\fR
+.
+.IP "\(bu" 4
+Insert literal character: \fBC\-v\fR
+.
+.IP "" 0
+.
+.SH "BUGS"
+\fBnewline\fR makes a number of assumptions:
+.
+.IP "\(bu" 4
+All input and output is UTF\-8\.
+.
+.IP "\(bu" 4
+Terminals understand \fBESC [ Ps C\fR: Move cursor forward \fBPs\fR times\.
+.
+.IP "\(bu" 4
+Terminals understand \fBESC [ Ps D\fR: Move cursor backward \fBPs\fR times\.
+.
+.IP "\(bu" 4
+Terminals understand \fBESC [ 0 K\fR: Erase everything to the right of cursor\.
+.
+.IP "\(bu" 4
+Terminals understand or ignore \fBESC [ Pm (; Pm)* m\fR: Set character attributes (color, intensity, and normal)\.
+.
+.IP "" 0
+.
+.SH "COPYRIGHT"
+Public Domain
+.
+.SH "SEE ALSO"
+prompt(1), readline(3), editline(3), linenoise \fIhttps://github\.com/antires/linenoise\fR
