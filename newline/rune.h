@@ -24,5 +24,6 @@ int runes_utf8s(Rune *r, char *u);
 int utf8s_runes(char *u, Rune *r);
 
 int rune_isspace(Rune r);
+int rune_width(Rune r);
 
 #endif
