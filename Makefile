@@ -17,6 +17,15 @@ $(call objmap,$(1)): $(1) | bin
 endef
 $(foreach source,$(sources),$(eval $(call objrule,$(source))))
 
+manpages=$(patsubst %.ronn,%,$(wildcard */*.ronn))
+doc: README.md $(manpages)
+
+%.1: %.1.ronn
+	ronn -r $<
+
+README.md: $(wildcard */*.ronn)
+	cat `echo $^ | tac -s" "` > $@
+
 bin:
 	mkdir bin
 
