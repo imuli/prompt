@@ -63,7 +63,7 @@ fork_newline(int *infd, int *linefd, int *outfd, int pty){
 		close(pty);
 		for(i=0;i<6;i++)
 			close(pipes[i]);
-		execlp("bin/newline", "newline", "inf", NULL);
+		execlp("newline", "newline", "inf", NULL);
 		return 0;
 	default:
 		/* even for reading, odd for writing */
@@ -220,7 +220,14 @@ int
 child(int pty, int argc, char** argv){
 	if(login_tty(pty) < 0)
 		return error("login_tty");
-	execv("/bin/bash", argv+1);
+
+	if(argc == 1){
+		argv[0] = getenv("SHELL");
+		if(!argv[0]) argv[0] = _PATH_BSHELL;
+	}else{
+		argv++;
+	}
+	execvp(argv[0], argv);
 	return error("exec");
 }
 
