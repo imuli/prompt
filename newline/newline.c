@@ -35,16 +35,27 @@ erase_line(void){
 	newline_out(cmd, sizeof(cmd)-1);
 }
 
+static int
+display_width(Text t, int n){
+	Rune *s = t->buf + t->off;
+	int width = 0;
+	if(n < 0) for(;n<0;n++)
+			width -= rune_width(*--s);
+	else for(;n>0;n--)
+			width += rune_width(*s++);
+	return width;
+}
+
 static void
 redraw_line(void){
 	if(!echo)
-		return cursor_shift(line->off-cursor);
+		return cursor_shift(line->off - cursor); /* invisible characters are all one space */
 	cursor_shift(-cursor);
 	text_render(line);
 	newline_out(line->text, line->textlen);
-	cursor += line->len;
+	cursor += display_width(line, line->len - line->off) - display_width(line, -line->off);
 	erase_line();
-	cursor_shift(line->off - line->len);
+	cursor_shift(-display_width(line, line->len - line->off));
 }
 
 static int
@@ -76,7 +87,7 @@ kill(int len){
 
 static void
 shift(int n){
-	cursor_shift(text_shift(line, n));
+	cursor_shift(-display_width(line, -text_shift(line, n)));
 }
 
 static void
@@ -154,7 +165,7 @@ history_next(Rune c){
 static void
 flush_line(Rune c){
 	append_character(c);
-	cursor_shift(-line->off);
+	cursor_shift(display_width(line, -line->off));
 	erase_line();
 	text_render(line);
 	newline_lineout(line->text, line->textlen);
@@ -180,7 +191,7 @@ backward_char(Rune c){
 static void
 echo_off(Rune c){
 	echo = 0;
-	cursor_shift(-line->off);
+	cursor_shift(display_width(line, -line->off));
 	erase_line();
 	redraw_line();
 }
