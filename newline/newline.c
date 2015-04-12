@@ -271,6 +271,12 @@ insert_yank(Rune c){
 	redraw_line();
 }
 
+static Rune get_rune(void);
+static void
+insert_literal(Rune c){
+	insert_character(get_rune());
+}
+
 enum {
 	/* special keys present in unicode */
 	Escape	= 0x1b,
@@ -339,6 +345,7 @@ keys_ctrl[] = {
 	{'q', echo_on},
 	{'s', echo_off},
 	{'u', kill_to_start},
+	{'v', insert_literal},
 	{'y', insert_yank},
 	{'w', kill_backward_word},
 	{'z', history_this},
