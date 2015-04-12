@@ -46,13 +46,35 @@ display_width(Text t, int n){
 	return width;
 }
 
+static Rune
+display_rune(Rune r){
+	if(r < ' ')	return 0x2400 | r;
+	if(r == 0x7f)	return 0x2421;
+	return r;
+}
+
+static int
+display_utf8_rune(char *u, Rune r){
+	Rune d = display_rune(r);
+	return utf8_rune(u, d);
+}
+
+static void
+display_render(Text t){
+	int i, len;
+	char buf[UTF8_MAX];
+	for(i=0;i<t->len;i++){
+		len = display_utf8_rune(buf, t->buf[i]);
+		newline_out(buf, len);
+	}
+}
+
 static void
 redraw_line(void){
 	if(!echo)
 		return cursor_shift(line->off - cursor); /* invisible characters are all one space */
 	cursor_shift(-cursor);
-	text_render(line);
-	newline_out(line->text, line->textlen);
+	display_render(line);
 	cursor += display_width(line, line->len - line->off) - display_width(line, -line->off);
 	erase_line();
 	cursor_shift(-display_width(line, line->len - line->off));
