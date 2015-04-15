@@ -19,6 +19,12 @@ int cursor;
 int kill_roll;
 int echo = 1;
 
+int
+newline_out(char *str, int len){
+	if(fwrite(str, len, 1, stderr) != 1) newline_finish(0);
+	return len;
+}
+
 static void
 cursor_shift(int n){
 	char cmd[12];
@@ -499,7 +505,7 @@ get_rune(void){
 	if(utflen)
 		len = rune_utf8(&r, utf);
 	while(r == IncRune && len == utflen){
-		newline_in(utf+utflen, 1);
+		if((utf[utflen] = getchar()) == EOF) newline_finish(0);
 		utf[++utflen]='\0';
 		len = rune_utf8(&r, utf);
 	}
@@ -530,6 +536,7 @@ static int
 init(void){
 	if((line = text_new(Linesize)) == NULL) return 0;
 	if((yank = text_new(Linesize)) == NULL) return 0;
+	setlinebuf(stderr);
 	return 1;
 }
 
@@ -542,8 +549,10 @@ newline_cleanup(void){
 void
 newline(void){
 	if(!init()) return;
-	while(loop)
+	while(loop){
 		handle_rune(get_rune());
+		fflush(stderr);
+	}
 	newline_cleanup();
 }
 

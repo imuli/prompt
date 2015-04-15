@@ -26,8 +26,8 @@ raw_mode(struct termios termp){
 	tcsetattr(0, TCSANOW, &termp);
 }
 
-static void
-finish(int n){
+void
+newline_finish(int n){
 	newline_cleanup();
 	tcsetattr(0, TCSADRAIN, &termp);
 	exit(n);
@@ -35,8 +35,8 @@ finish(int n){
 
 static void
 handlesignals(int sig){
-	if(sig == SIGPIPE) finish(0);
-	finish(1);
+	if(sig == SIGPIPE) newline_finish(0);
+	newline_finish(1);
 }
 
 static void
@@ -50,23 +50,10 @@ setsignals(void){
 }
 
 int
-newline_in(char *str, int len){
-	int i;
-	if((i = read(0, str, len)) <= 0) finish(1);
-	return i;
-}
-
-int
 newline_lineout(char *str, int len){
-	if(write_all(1, str, len) < 0) finish(1);
+	if(write_all(1, str, len) < 0) newline_finish(1);
 	if(--lines <= 0)
-		finish(0);
-	return len;
-}
-
-int
-newline_out(char *str, int len){
-	if(write_all(2, str, len) < 0) finish(1);
+		newline_finish(0);
 	return len;
 }
 

@@ -1,7 +1,6 @@
 /* in main */
-int newline_in(char *str, int len);
-int newline_out(char *str, int len);
 int newline_lineout(char *str, int len);
+void newline_finish(int n);
 
 /* in newline */
 void newline_cleanup(void);
