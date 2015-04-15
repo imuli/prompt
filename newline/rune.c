@@ -12,7 +12,7 @@ bit_index(unsigned r) {
   i |= i >> 1; i |= i >> 2; i |= i >> 4;
   i |= i >> 8; i |= i >> 16;
   i=i/2+1;
-  return biti_32v[((i * biti_32m) >> 27)%32];
+  return biti_32v[(Rune)(i * biti_32m) >> 27];
 }
 
 int
