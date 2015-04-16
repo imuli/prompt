@@ -12,16 +12,17 @@ enum {
 	HistorySize = 128,
 };
 
+double lines;
+
 Text line;
 Text yank;
-int loop = 1;
 int cursor;
 int kill_roll;
 int echo = 1;
 
-int
+static int
 newline_out(char *str, int len){
-	if(fwrite(str, len, 1, stderr) != 1) newline_finish(0);
+	if(fwrite(str, len, 1, stderr) != 1) exit(0);
 	return len;
 }
 
@@ -77,13 +78,25 @@ display_utf8_rune(char *u, Rune r){
 }
 
 static void
-display_render(Text t){
+display_render(){
 	int i, len;
 	char buf[UTF8_MAX+SPECIAL_MAX];
-	for(i=0;i<t->len;i++){
-		len = display_utf8_rune(buf, t->buf[i]);
+	for(i=0;i<line->len;i++){
+		len = display_utf8_rune(buf, line->buf[i]);
 		newline_out(buf, len);
 	}
+}
+
+static void
+lineout_render(){
+	int i, len;
+	char buf[UTF8_MAX];
+	for(i=0;i<line->len;i++){
+		len = utf8_rune(buf, line->buf[i]);
+		if(fwrite(buf, len, 1, stdout) != 1) exit(0);
+	}
+	fflush(stdout);
+	if(--lines <= 0) exit(0);
 }
 
 static void
@@ -91,7 +104,7 @@ redraw_line(void){
 	if(!echo)
 		return cursor_shift(line->off - cursor); /* invisible characters are all one space */
 	cursor_shift(-cursor);
-	display_render(line);
+	display_render();
 	cursor += display_width(line, line->len - line->off) - display_width(line, -line->off);
 	erase_line();
 	cursor_shift(-display_width(line, line->len - line->off));
@@ -206,8 +219,8 @@ flush_line(Rune c){
 	append_character(c);
 	cursor_shift(display_width(line, -line->off));
 	erase_line();
-	text_render(line);
-	newline_lineout(line->text, line->textlen);
+	fflush(stderr);
+	lineout_render();
 	line->len--; /* FIXME! store history without the flushing character! */
 	history_next(c);
 }
@@ -505,7 +518,7 @@ get_rune(void){
 	if(utflen)
 		len = rune_utf8(&r, utf);
 	while(r == IncRune && len == utflen){
-		if((utf[utflen] = getchar()) == EOF) newline_finish(0);
+		if((utf[utflen] = getchar()) == EOF) exit(0);
 		utf[++utflen]='\0';
 		len = rune_utf8(&r, utf);
 	}
@@ -532,27 +545,27 @@ handle_rune(Rune r){
 	}
 }
 
-static int
-init(void){
-	if((line = text_new(Linesize)) == NULL) return 0;
-	if((yank = text_new(Linesize)) == NULL) return 0;
-	setlinebuf(stderr);
-	return 1;
-}
-
-void
+static void
 newline_cleanup(void){
 	if(line) free(line);
 	if(yank) free(yank);
 }
 
-void
+static int
+init(void){
+	if((line = text_new(Linesize)) == NULL) return 0;
+	if((yank = text_new(Linesize)) == NULL) return 0;
+	atexit(&newline_cleanup);
+	setlinebuf(stderr);
+	return 1;
+}
+
+int
 newline(void){
-	if(!init()) return;
-	while(loop){
+	if(!init()) return 1;
+	while(1){
 		handle_rune(get_rune());
 		fflush(stderr);
 	}
-	newline_cleanup();
 }
 

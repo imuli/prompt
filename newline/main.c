@@ -6,17 +6,6 @@
 
 #include "newline.h"
 
-int
-write_all(int fd, char *str, int len){
-	int i, off = 0;
-	while(off < len){
-		if((i = write(fd, str+off, len-off)) < 0) return i;
-		off += i;
-	}
-	return off;
-}
-
-double lines = 1;
 struct termios termp;
 
 static void
@@ -26,17 +15,15 @@ raw_mode(struct termios termp){
 	tcsetattr(0, TCSANOW, &termp);
 }
 
-void
-newline_finish(int n){
-	newline_cleanup();
+static void
+reset_term(void){
 	tcsetattr(0, TCSADRAIN, &termp);
-	exit(n);
 }
 
 static void
 handlesignals(int sig){
-	if(sig == SIGPIPE) newline_finish(0);
-	newline_finish(1);
+	if(sig == SIGPIPE) exit(0);
+	exit(1);
 }
 
 static void
@@ -50,23 +37,17 @@ setsignals(void){
 }
 
 int
-newline_lineout(char *str, int len){
-	if(write_all(1, str, len) < 0) newline_finish(1);
-	if(--lines <= 0)
-		newline_finish(0);
-	return len;
-}
-
-int
 main(int argc, char** argv){
-	if(argc>1)
+	if(argc>1){
 		lines = strtod(argv[argc-1], NULL);
+		if(lines <= 0) return 1;
+	}
 	setsignals();
 
-	if(tcgetattr(0, &termp) == 0)
+	if(tcgetattr(0, &termp) == 0){
 		raw_mode(termp);
+		atexit(&reset_term);
+	}
 
-	newline();
-
-	return 1;
+	return newline();
 }
