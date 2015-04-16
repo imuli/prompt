@@ -7,7 +7,7 @@ static const unsigned int biti_32v[32] = {
   31,27,13,23,21,19,16, 7,	26,12,18, 6,11, 5,10, 9};
 static const unsigned long biti_32m = 0x077cb531;
 static int
-bit_index(unsigned r) {
+log2rune(unsigned r) {
   unsigned i = r;
   i |= i >> 1; i |= i >> 2; i |= i >> 4;
   i |= i >> 8; i |= i >> 16;
@@ -17,7 +17,7 @@ bit_index(unsigned r) {
 
 int
 runechar(Rune r){
-	int i = bit_index(r);
+	int i = log2rune(r);
 	if(i<7) return 1;
 	return (i-1)/5+1;
 }
@@ -33,7 +33,7 @@ runeschars(Rune *r){
 
 int
 utf8char(char *u){
-	int i = bit_index(0xff&~*u);
+	int i = log2rune(0xff&~*u);
 	if(i>5) return i-6;
 	return 7-i;
 }
