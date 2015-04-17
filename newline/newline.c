@@ -154,11 +154,11 @@ insert_character(Rune c){
 	redraw_line();
 }
 
-static struct {
-	int cur;
-	/* forth style strings of runes */
-	Rune *line[HistorySize];
-} hist;
+static struct history_entry {
+	struct history_entry *next, *prev;
+	/* forth style string of runes */
+	Rune *line;
+} *hist_last, *hist_cur;
 
 static void
 history_save(){
@@ -169,27 +169,39 @@ history_save(){
 	memcpy(thisline+1, line->buf, line->len * sizeof(Rune));
 	*thisline = line->len;
 
-	if(hist.line[hist.cur] != NULL)
-		free(hist.line[hist.cur]);
-	hist.line[hist.cur] = thisline;
+	if(hist_cur->line != NULL)
+		free(hist_cur->line);
+	hist_cur->line = thisline;
 }
 
 static void
 history_advance(int n){
-	hist.cur+=n;
-	if(hist.cur < 0)
-		hist.cur += HistorySize;
-	if(hist.cur >= HistorySize)
-		hist.cur -= HistorySize;
+	if(n>0)	for(;n>0 && hist_cur->next != NULL;n--)
+			hist_cur = hist_cur->next;
+	else	for(;n<0 && hist_cur->next != NULL;n++)
+			hist_cur = hist_cur->prev;
 }
 
 static void
 history_load(){
 	cursor_shift(-cursor);
 	text_clear(line);
-	if(hist.line[hist.cur] != NULL)
-		text_insert(line, hist.line[hist.cur]+1, *hist.line[hist.cur]);
+	if(hist_cur->line != NULL)
+		text_insert(line, hist_cur->line+1, *hist_cur->line);
 	redraw_line();
+}
+
+static void
+history_add(){
+	struct history_entry *this;
+	if((this = malloc(sizeof(struct history_entry))) == NULL) return;
+	this->prev = hist_last;
+	this->next = NULL;
+	this->line = NULL;
+	if(hist_last != NULL)
+		hist_last->next = this;
+	hist_cur = hist_last = this;
+	history_load();
 }
 
 static void
@@ -222,7 +234,9 @@ flush_line(Rune c){
 	fflush(stderr);
 	lineout_render();
 	line->len--; /* FIXME! store history without the flushing character! */
-	history_next(c);
+	hist_cur = hist_last;
+	history_save();
+	history_add();
 }
 
 static void
@@ -557,6 +571,7 @@ init(void){
 	if((yank = text_new(Linesize)) == NULL) return 0;
 	atexit(&newline_cleanup);
 	setlinebuf(stderr);
+	history_add();
 	return 1;
 }
 
