@@ -178,7 +178,7 @@ static void
 history_advance(int n){
 	if(n>0)	for(;n>0 && hist_cur->next != NULL;n--)
 			hist_cur = hist_cur->next;
-	else	for(;n<0 && hist_cur->next != NULL;n++)
+	else	for(;n<0 && hist_cur->prev != NULL;n++)
 			hist_cur = hist_cur->prev;
 }
 
