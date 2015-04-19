@@ -20,8 +20,8 @@ int cursor;
 int kill_roll;
 
 static int
-newline_out(char *str, int len){
-	if(fwrite(str, len, 1, stderr) != 1) exit(0);
+stdwrite(FILE* f, char *str, int len){
+	if(fwrite(str, len, 1, f) != 1) exit(0);
 	return len;
 }
 
@@ -31,14 +31,14 @@ cursor_shift(int n){
 	int len;
 	if(n==0) return;
 	len = snprintf(cmd, 12, "\e[%d%c", n, n<0? 'D' : 'C');
-	newline_out(cmd, len);
+	stdwrite(stderr, cmd, len);
 	cursor += n;
 }
 
 static void
 erase_line(void){
 	char cmd[]="\e[K";
-	newline_out(cmd, sizeof(cmd)-1);
+	stdwrite(stderr, cmd, sizeof(cmd)-1);
 }
 
 static int
@@ -77,30 +77,19 @@ display_utf8_rune(char *u, Rune r){
 }
 
 static void
-display_render(){
+render(FILE* f, int (*utf8_from_rune)(char *, Rune)){
 	int i, len;
 	char buf[UTF8_MAX+SPECIAL_MAX];
 	for(i=0;i<line->len;i++){
-		len = display_utf8_rune(buf, line->buf[i]);
-		newline_out(buf, len);
+		len = (*utf8_from_rune)(buf, line->buf[i]);
+		stdwrite(f, buf, len);
 	}
-}
-
-static void
-lineout_render(){
-	int i, len;
-	char buf[UTF8_MAX];
-	for(i=0;i<line->len;i++){
-		len = utf8_rune(buf, line->buf[i]);
-		if(fwrite(buf, len, 1, stdout) != 1) exit(0);
-	}
-	if(--lines <= 0) exit(0);
 }
 
 static void
 redraw_line(void){
 	cursor_shift(-cursor);
-	display_render();
+	render(stderr, display_utf8_rune);
 	cursor += display_width(line, line->len - line->off) - display_width(line, -line->off);
 	erase_line();
 	cursor_shift(-display_width(line, line->len - line->off));
@@ -225,8 +214,9 @@ flush_line(Rune c){
 	cursor_shift(-cursor);
 	erase_line();
 	fflush(stderr);
-	lineout_render();
+	render(stdout, utf8_rune);
 	fflush(stdout);
+	if(--lines <= 0) exit(0);
 	line->len--; /* FIXME! store history without the flushing character! */
 	hist_cur = hist_len - 1;
 	history_save();
