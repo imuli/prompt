@@ -23,7 +23,7 @@ runechar(Rune r){
 }
 
 int
-runeschars(Runes r){
+runeschars(Runes* r){
 	int n = 0, i;
 	for(i=r->c;i>0;i--){
 		n+= runechar(r->r[i]);
@@ -79,7 +79,7 @@ rune_utf8(Rune *rr, char *u){
 }
 
 int
-runes_utf8s(Runes r, char *u){
+runes_utf8s(Runes* r, char *u){
 	int n = 0, i = r->c;
 	for(;u[n]!=0;i++){
 		n += rune_utf8(r->r+i, u+n);
@@ -104,7 +104,7 @@ utf8_rune(char *u, Rune r){
 }
 
 int
-utf8s_runes(char *u, Runes r){
+utf8s_runes(char *u, Runes* r){
 	int n = 0, i;
 	for(i=r->c;i>0;i--){
 		n += utf8_rune(u+n, r->r[i]);

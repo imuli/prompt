@@ -141,12 +141,12 @@ insert_character(Rune c){
 	text_insert(line, &c, 1);
 }
 
-Runes* hist;
+Runes** hist;
 int hist_cur, hist_len, hist_sz;
 
 static void
 history_save(){
-	Runes thisline;
+	Runes* thisline;
 	if(!line->buf->c || redraw_func != redraw_line) return;
 
 	if((thisline = malloc(sizeof(*thisline) + line->buf->c * sizeof(Rune))) == NULL) return;
