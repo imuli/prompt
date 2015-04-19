@@ -6,6 +6,10 @@ typedef unsigned long Rune;
 #else
 typedef unsigned int Rune;
 #endif
+typedef struct {
+	Rune c;
+	Rune r[];
+} *Runes;
 #define RUNE_MAX 0xffffffff
 #define UTF8_MAX 7
 enum {
@@ -18,10 +22,10 @@ int utf8char(char *u);
 int rune_utf8(Rune *rr, char *u);
 int utf8_rune(char *u, Rune r);
 
-int runeschars(Rune *r);
+int runeschars(Runes r);
 int utf8srunes(char *u);
-int runes_utf8s(Rune *r, char *u);
-int utf8s_runes(char *u, Rune *r);
+int runes_utf8s(Runes r, char *u);
+int utf8s_runes(char *u, Runes r);
 
 int rune_isspace(Rune r);
 int rune_width(Rune r);

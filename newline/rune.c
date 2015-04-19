@@ -23,12 +23,12 @@ runechar(Rune r){
 }
 
 int
-runeschars(Rune *r){
-	int i = 0;
-	for(;*r!=0;r++){
-		i+= runechar(*r);
+runeschars(Runes r){
+	int n = 0, i;
+	for(i=r->c;i>0;i--){
+		n+= runechar(r->r[i]);
 	}
-	return i;
+	return n;
 }
 
 int
@@ -79,14 +79,12 @@ rune_utf8(Rune *rr, char *u){
 }
 
 int
-runes_utf8s(Rune *r, char *u){
-	int n,i = 0;
-	for(;*u!=0;u+=n){
-		n = rune_utf8(r, u);
-		r++;
-		i++;
+runes_utf8s(Runes r, char *u){
+	int n = 0, i = r->c;
+	for(;u[n]!=0;i++){
+		n += rune_utf8(r->r+i, u+n);
 	}
-	*r = 0;
+	r->c = i;
 	return i;
 }
 
@@ -106,15 +104,13 @@ utf8_rune(char *u, Rune r){
 }
 
 int
-utf8s_runes(char *u, Rune *r){
-	int n,i = 0;
-	for(;*r!=0;u+=n){
-		n = utf8_rune(u, *r);
-		r++;
-		i+=n;
+utf8s_runes(char *u, Runes r){
+	int n = 0, i;
+	for(i=r->c;i>0;i--){
+		n += utf8_rune(u+n, r->r[i]);
 	}
 	*u = '\0';
-	return i;
+	return n;
 }
 
 int
