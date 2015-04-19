@@ -190,6 +190,7 @@ history_add(){
 		hist_sz = hist_len*2;
 		hist = realloc(hist, sizeof(*hist)*hist_sz);
 	}
+	hist[hist_cur] = NULL;
 }
 
 static void
