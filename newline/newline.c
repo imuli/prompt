@@ -18,7 +18,6 @@ Text line;
 Text yank;
 int cursor;
 int kill_roll;
-int echo = 1;
 
 static int
 newline_out(char *str, int len){
@@ -100,14 +99,19 @@ lineout_render(){
 
 static void
 redraw_line(void){
-	if(!echo)
-		return cursor_shift(line->off - cursor); /* invisible characters are all one space */
 	cursor_shift(-cursor);
 	display_render();
 	cursor += display_width(line, line->len - line->off) - display_width(line, -line->off);
 	erase_line();
 	cursor_shift(-display_width(line, line->len - line->off));
 }
+
+static void
+redraw_line_noecho(void){
+	cursor_shift(line->off - cursor); /* invisible characters are all one space */
+}
+
+static void (*redraw_func)(void) = redraw_line;
 
 static int
 word_len(int dir){
@@ -157,7 +161,7 @@ int hist_cur, hist_len, hist_sz;
 static void
 history_save(){
 	Rune* thisline;
-	if(!line->len || !echo) return;
+	if(!line->len || redraw_func != redraw_line) return;
 
 	if((thisline = malloc((line->len+1) * sizeof(Rune))) == NULL) return;
 	memcpy(thisline+1, line->buf, line->len * sizeof(Rune));
@@ -247,14 +251,14 @@ backward_char(Rune c){
 
 static void
 echo_off(Rune c){
-	echo = 0;
+	redraw_func = redraw_line_noecho;
 	cursor_shift(-cursor);
 	erase_line();
 }
 
 static void
 echo_on(Rune c){
-	echo = 1;
+	redraw_func = redraw_line;
 }
 
 static void
@@ -566,7 +570,7 @@ newline(void){
 	if(!init()) return 1;
 	while(1){
 		handle_rune(get_rune());
-		redraw_line();
+		(*redraw_func)();
 		fflush(stderr);
 	}
 }
