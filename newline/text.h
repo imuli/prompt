@@ -1,8 +1,8 @@
 #ifndef TEXT_H
 #define TEXT_H
 typedef struct {
-	Rune* buf;
-	int off, len, sz;
+	Runes buf;
+	int off, sz;
 }* Text;
 
 void* text_free(Text t);

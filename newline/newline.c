@@ -41,14 +41,14 @@ erase_line(void){
 	stdwrite(stderr, cmd, sizeof(cmd)-1);
 }
 
+
 static int
 display_width(const Text t, int start, int end){
 	int width = 0;
 	for(;start < end;start++)
-		width += rune_width(t->buf[start]);
+		width += rune_width(t->buf->r[start]);
 	return width;
 }
-
 static Rune
 display_rune(Rune r){
 	if(r < ' ')	return 0x2400 | r;
@@ -77,8 +77,8 @@ static void
 render(FILE* f, int (*utf8_from_rune)(char *, Rune)){
 	int i, len;
 	char buf[UTF8_MAX+SPECIAL_MAX];
-	for(i=0;i<line->len;i++){
-		len = (*utf8_from_rune)(buf, line->buf[i]);
+	for(i=0;i<line->buf->c;i++){
+		len = (*utf8_from_rune)(buf, line->buf->r[i]);
 		stdwrite(f, buf, len);
 	}
 }
@@ -87,9 +87,9 @@ static void
 redraw_line(void){
 	cursor_shift(-cursor);
 	render(stderr, display_utf8_rune);
-	cursor += display_width(line, 0, line->len);
+	cursor += display_width(line, 0, line->buf->c);
 	erase_line();
-	cursor_shift(-display_width(line, line->off, line->len));
+	cursor_shift(-display_width(line, line->off, line->buf->c));
 }
 
 static void
@@ -101,11 +101,11 @@ static void (*redraw_func)(void) = redraw_line;
 
 static int
 word_len(int dir){
-	Rune *r = line->buf;
+	Rune *r = line->buf->r;
 	int i = line->off;
 	if(dir < 0) i--;
-	for(; i>=0 && i<line->len && rune_isspace(r[i]); i+=dir);
-	for(; i>=0 && i<line->len && !rune_isspace(r[i]); i+=dir);
+	for(; i>=0 && i<line->buf->c && rune_isspace(r[i]); i+=dir);
+	for(; i>=0 && i<line->buf->c && !rune_isspace(r[i]); i+=dir);
 	if(dir < 0) i++;
 	return i - line->off;
 }
@@ -119,9 +119,9 @@ kill(int len){
 		len = -len;
 		text_shift(yank, -yank->off);
 	} else {
-		text_shift(yank, yank->len - yank->off);
+		text_shift(yank, yank->buf->c - yank->off);
 	}
-	text_insert(yank, line->buf + line->off, len);
+	text_insert(yank, line->buf->r + line->off, len);
 	text_delete(line, len);
 }
 
@@ -141,17 +141,16 @@ insert_character(Rune c){
 	text_insert(line, &c, 1);
 }
 
-Rune** hist;
+Runes* hist;
 int hist_cur, hist_len, hist_sz;
 
 static void
 history_save(){
-	Rune* thisline;
-	if(!line->len || redraw_func != redraw_line) return;
+	Runes thisline;
+	if(!line->buf->c || redraw_func != redraw_line) return;
 
-	if((thisline = malloc((line->len+1) * sizeof(Rune))) == NULL) return;
-	memcpy(thisline+1, line->buf, line->len * sizeof(Rune));
-	*thisline = line->len;
+	if((thisline = malloc(sizeof(*thisline) + line->buf->c * sizeof(Rune))) == NULL) return;
+	memcpy(thisline, line->buf, sizeof(*thisline) + line->buf->c * sizeof(Rune));
 
 	if(hist[hist_cur] != NULL)
 		free(hist[hist_cur]);
@@ -169,7 +168,7 @@ static void
 history_load(){
 	text_clear(line);
 	if(hist[hist_cur] != NULL)
-		text_insert(line, hist[hist_cur]+1, *hist[hist_cur]);
+		text_insert(line, hist[hist_cur]->r, hist[hist_cur]->c);
 }
 
 static void
@@ -214,7 +213,7 @@ flush_line(Rune c){
 	render(stdout, utf8_rune);
 	fflush(stdout);
 	if(--lines <= 0) exit(0);
-	line->len--; /* FIXME! store history without the flushing character! */
+	line->buf->c--; /* FIXME! store history without the flushing character! */
 	hist_cur = hist_len - 1;
 	history_save();
 	history_add();
@@ -255,7 +254,7 @@ forward_word(Rune c){
 
 static void
 forward_line(Rune c){
-	shift(line->len - line->off);
+	shift(line->buf->c - line->off);
 }
 
 static void
@@ -286,7 +285,7 @@ delete_forward_char(Rune c){
 
 static void
 kill_to_end(Rune c){
-	kill(line->len - line->off);
+	kill(line->buf->c - line->off);
 }
 
 static void
@@ -311,7 +310,7 @@ kill_backward_char(Rune c){
 
 static void
 insert_yank(Rune c){
-	text_insert(line, yank->buf, yank->len);
+	text_insert(line, yank->buf->r, yank->buf->c);
 }
 
 static Rune get_rune(void);
