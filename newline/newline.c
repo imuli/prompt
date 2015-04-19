@@ -42,13 +42,10 @@ erase_line(void){
 }
 
 static int
-display_width(Text t, int n){
-	Rune *s = t->buf + t->off;
+display_width(const Text t, int start, int end){
 	int width = 0;
-	if(n < 0) for(;n<0;n++)
-			width -= rune_width(*--s);
-	else for(;n>0;n--)
-			width += rune_width(*s++);
+	for(;start < end;start++)
+		width += rune_width(t->buf[start]);
 	return width;
 }
 
@@ -90,9 +87,9 @@ static void
 redraw_line(void){
 	cursor_shift(-cursor);
 	render(stderr, display_utf8_rune);
-	cursor += display_width(line, line->len - line->off) - display_width(line, -line->off);
+	cursor += display_width(line, 0, line->len);
 	erase_line();
-	cursor_shift(-display_width(line, line->len - line->off));
+	cursor_shift(-display_width(line, line->off, line->len));
 }
 
 static void
