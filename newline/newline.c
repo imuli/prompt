@@ -95,7 +95,6 @@ lineout_render(){
 		len = utf8_rune(buf, line->buf[i]);
 		if(fwrite(buf, len, 1, stdout) != 1) exit(0);
 	}
-	fflush(stdout);
 	if(--lines <= 0) exit(0);
 }
 
@@ -134,12 +133,11 @@ kill(int len){
 	}
 	text_insert(yank, line->buf + line->off, len);
 	text_delete(line, len);
-	redraw_line();
 }
 
 static void
 shift(int n){
-	cursor_shift(-display_width(line, -text_shift(line, n)));
+	text_shift(line, n);
 }
 
 static void
@@ -151,7 +149,6 @@ static void
 insert_character(Rune c){
 	if(0xd800 <= c && c < 0xdc00) return;
 	text_insert(line, &c, 1);
-	redraw_line();
 }
 
 Rune** hist;
@@ -180,11 +177,9 @@ history_advance(int n){
 
 static void
 history_load(){
-	cursor_shift(-cursor);
 	text_clear(line);
 	if(hist[hist_cur] != NULL)
 		text_insert(line, hist[hist_cur]+1, *hist[hist_cur]);
-	redraw_line();
 }
 
 static void
@@ -222,10 +217,11 @@ history_next(Rune c){
 static void
 flush_line(Rune c){
 	append_character(c);
-	cursor_shift(display_width(line, -line->off));
+	cursor_shift(-cursor);
 	erase_line();
 	fflush(stderr);
 	lineout_render();
+	fflush(stdout);
 	line->len--; /* FIXME! store history without the flushing character! */
 	hist_cur = hist_len - 1;
 	history_save();
@@ -251,15 +247,13 @@ backward_char(Rune c){
 static void
 echo_off(Rune c){
 	echo = 0;
-	cursor_shift(display_width(line, -line->off));
+	cursor_shift(-cursor);
 	erase_line();
-	redraw_line();
 }
 
 static void
 echo_on(Rune c){
 	echo = 1;
-	redraw_line();
 }
 
 static void
@@ -291,13 +285,11 @@ end_of_file(Rune c){
 static void
 delete_backward_char(Rune c){
 	text_delete(line, -1);
-	redraw_line();
 }
 
 static void
 delete_forward_char(Rune c){
 	text_delete(line, 1);
-	redraw_line();
 }
 
 static void
@@ -328,7 +320,6 @@ kill_backward_char(Rune c){
 static void
 insert_yank(Rune c){
 	text_insert(line, yank->buf, yank->len);
-	redraw_line();
 }
 
 static Rune get_rune(void);
@@ -564,7 +555,7 @@ init(void){
 	if((line = text_new(Linesize)) == NULL) return 0;
 	if((yank = text_new(Linesize)) == NULL) return 0;
 	atexit(&newline_cleanup);
-	setlinebuf(stderr);
+	setvbuf(stderr, NULL, _IOFBF, BUFSIZ);
 	history_add();
 	return 1;
 }
@@ -574,6 +565,7 @@ newline(void){
 	if(!init()) return 1;
 	while(1){
 		handle_rune(get_rune());
+		redraw_line();
 		fflush(stderr);
 	}
 }
