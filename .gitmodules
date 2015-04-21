@@ -1,0 +1,3 @@
+[submodule "librune"]
+	path = librune
+	url = https://github.com/imuli/librune

@@ -60,16 +60,16 @@ static char display_intro_replaced[] = "\x1b[1;32m";
 static char display_intro_normal[] = "\x1b[0m";
 enum { SPECIAL_MAX = sizeof(display_intro_replaced) + sizeof(display_intro_normal) };
 static int
-display_utf8_rune(char *u, Rune r){
+display_utf8_of_rune(char *u, Rune r){
 	Rune d = display_rune(r);
 	char *ue;
 	if(d != r){
 		ue = stpcpy(u, display_intro_replaced);
-		ue += utf8_rune(ue, d);
+		ue += utf8_of_rune(ue, d);
 		ue = stpcpy(ue, display_intro_normal);
 		return ue-u;
 	}
-	return utf8_rune(u, d);
+	return utf8_of_rune(u, d);
 }
 
 static void
@@ -85,7 +85,7 @@ render(FILE* f, int (*utf8_from_rune)(char *, Rune)){
 static void
 redraw_line(void){
 	cursor_shift(-cursor);
-	render(stderr, display_utf8_rune);
+	render(stderr, display_utf8_of_rune);
 	cursor += display_width(line, 0, line->buf->c);
 	erase_line();
 	cursor_shift(-display_width(line, line->off, line->buf->c));
@@ -194,7 +194,7 @@ flush_line(Rune c, void* f, int v){
 	cursor_shift(-cursor);
 	erase_line();
 	fflush(stderr);
-	render(stdout, utf8_rune);
+	render(stdout, utf8_of_rune);
 	fflush(stdout);
 	if(--lines <= 0) exit(0);
 	if(pty_mode || f == NULL) line->buf->c--; /* FIXME! store history without the flushing character! */
@@ -253,8 +253,8 @@ words(int dir){
 	Rune *r = line->buf->r;
 	int i = line->off;
 	if(dir < 0) i--;
-	for(; i>=0 && i<line->buf->c && rune_isspace(r[i]); i+=dir);
-	for(; i>=0 && i<line->buf->c && !rune_isspace(r[i]); i+=dir);
+	for(; i>=0 && i<line->buf->c && is_rune_space(r[i]); i+=dir);
+	for(; i>=0 && i<line->buf->c && !is_rune_space(r[i]); i+=dir);
 	if(dir < 0) i++;
 	return i - line->off;
 }
@@ -451,11 +451,11 @@ get_rune(void){
 	Rune r = IncRune;
 
 	if(utflen)
-		len = rune_utf8(&r, utf);
+		len = rune_of_utf8(&r, utf);
 	while(r == IncRune && len == utflen){
 		if((utf[utflen] = getchar()) == EOF) exit(0);
 		utf[++utflen]='\0';
-		len = rune_utf8(&r, utf);
+		len = rune_of_utf8(&r, utf);
 	}
 	utflen -= len;
 	memmove(utf, utf+len, utflen+1);
