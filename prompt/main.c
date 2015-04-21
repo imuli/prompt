@@ -63,7 +63,7 @@ fork_newline(int *infd, int *linefd, int *outfd, int pty){
 		close(pty);
 		for(i=0;i<6;i++)
 			close(pipes[i]);
-		execlp("newline", "newline", "inf", NULL);
+		execlp("newline", "newline", "--pty", "inf", NULL);
 		return 0;
 	default:
 		/* even for reading, odd for writing */

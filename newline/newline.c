@@ -9,10 +9,10 @@
 
 enum {
 	Linesize = 128,
-	HistorySize = 128,
 };
 
-double lines;
+double lines = 1;
+int pty_mode = 0;
 
 Text line;
 Text yank;
@@ -181,15 +181,24 @@ history_shift(Rune c, void* f, int n){
 }
 
 static void
+end(int n){
+	lines = 0;
+}
+
+static void
 flush_line(Rune c, void* f, int v){
-	append_character(v);
+	if(pty_mode || f == NULL){
+		append_character(v);
+	}else{
+		(*(void(*)(int)) f)(v);
+	}
 	cursor_shift(-cursor);
 	erase_line();
 	fflush(stderr);
 	render(stdout, utf8_rune);
 	fflush(stdout);
 	if(--lines <= 0) exit(0);
-	line->buf->c--; /* FIXME! store history without the flushing character! */
+	if(pty_mode || f == NULL) line->buf->c--; /* FIXME! store history without the flushing character! */
 	hist_cur = hist_len - 1;
 	history_save();
 	history_add();
@@ -205,12 +214,6 @@ set_echo(Rune c, void* v, int enable){
 	}else{
 		redraw_func = redraw_line;
 	}
-}
-
-static void
-interrupt(Rune c, void* f, int r){
-	text_clear(line);
-	flush_line(c, f, r);
 }
 
 static void
@@ -323,8 +326,8 @@ static struct keyconfig
 keys_ctrl[] = {
 	{'a', shift, 0, to_the},
 	{'b', shift, -1, chars},
-	{'c', interrupt, '\x03'},
-	{'d', flush_line, '\x04'},
+	{'c', flush_line, '\x03', exit},
+	{'d', flush_line, '\x04', end},
 	{'e', shift, 1, to_the},
 	{'f', shift, 1, chars},
 	{'h', kill, -1, chars},

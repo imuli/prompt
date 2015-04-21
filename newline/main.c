@@ -1,6 +1,7 @@
 #include <signal.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include <termios.h>
 #include <unistd.h>
 
@@ -38,10 +39,15 @@ setsignals(void){
 
 int
 main(int argc, char** argv){
-	if(argc>1){
-		lines = strtod(argv[argc-1], NULL);
-		if(lines <= 0) return 1;
+	int i;
+	for(i=1;i<argc;i++){
+		if(argv[i][0] == '-'){
+			if(strcmp(argv[i], "--pty") == 0)	pty_mode = 1;
+		} else {
+			lines = strtod(argv[i], NULL);
+		}
 	}
+	if(lines <= 0) return 1;
 	setsignals();
 
 	if(tcgetattr(0, &termp) == 0){

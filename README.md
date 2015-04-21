@@ -42,7 +42,8 @@ The number of lines to copy, _n_, must come last. It defaults to **1** and may b
 
 ## OPTIONS
 
-All options are ignored at this time.
+* `--pty`
+	Output a stream suitable for feeding to a pty master. (Don't act on `C-d` or `C-c`.)
 
 ## COMMANDS
 
