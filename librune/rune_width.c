@@ -1,132 +1,4 @@
-#include <string.h>
-#include <stdio.h>
-#include "rune.h"
-
-static const unsigned int biti_32v[32] = {
-   0, 1,28, 2,29,14,24, 3,	30,22,20,15,25,17, 4, 8,
-  31,27,13,23,21,19,16, 7,	26,12,18, 6,11, 5,10, 9};
-static const unsigned long biti_32m = 0x077cb531;
-static int
-log2rune(unsigned r) {
-  unsigned i = r;
-  i |= i >> 1; i |= i >> 2; i |= i >> 4;
-  i |= i >> 8; i |= i >> 16;
-  i=i/2+1;
-  return biti_32v[(Rune)(i * biti_32m) >> 27];
-}
-
-int
-runechar(Rune r){
-	int i = log2rune(r);
-	if(i<7) return 1;
-	return (i-1)/5+1;
-}
-
-int
-runeschars(Runes* r){
-	int n = 0, i;
-	for(i=r->c;i>0;i--){
-		n+= runechar(r->r[i]);
-	}
-	return n;
-}
-
-int
-utf8char(char *u){
-	int i = log2rune(0xff&~*u);
-	if(i>5) return i-6;
-	return 7-i;
-}
-
-int
-utf8srunes(char *u){
-	int n, i = 0;
-	for(;*u!=0;u+=n){
-		n = utf8char(u);
-		if(n < 1) return -1;
-		i++;
-	}
-	return i;
-}
-
-int
-rune_utf8(Rune *rr, char *u){
-	unsigned long mask;
-	int n = utf8char(u);
-	int i;
-	Rune r;
-	/* check for spurious 10xxxxxx bytes */
-	if(n == 0){
-		*rr = BadRune;
-		return 1;
-	}
-	mask = 0xff >> n;
-	r = *u & mask;
-	for(i=1;i<n;i++){
-		/* check for complete characters */
-		if((u[i] & 0xc0) != 0x80){
-			*rr = IncRune;
-			return i;
-		}
-		r <<= 6;
-		r |= u[i] & 0x3f;
-	}
-	/* enforce minimum length utf8 encoding */
-	if(i != runechar(r))
-		r = BadRune;
-	*rr = r;
-	return i;
-}
-
-int
-runes_utf8s(Runes* r, char *u){
-	int n = 0, i = r->c;
-	for(;u[n]!=0;i++){
-		n += rune_utf8(r->r+i, u+n);
-	}
-	r->c = i;
-	return i;
-}
-
-int
-utf8_rune(char *u, Rune r){
-	unsigned long mask;
-	int n = runechar(r);
-	int i;
-	mask = n==1 ? 0 : 0xff00 >> n;
-	u[n] = '\0';
-	for(i=n-1;i>0;i--){
-		u[i] = 0x80 | (r & 0x3f);
-		r >>= 6;
-	}
-	u[0] = mask | r;
-	return n;
-}
-
-int
-utf8s_runes(char *u, Runes* r){
-	int n = 0, i;
-	for(i=r->c;i>0;i--){
-		n += utf8_rune(u+n, r->r[i]);
-	}
-	*u = '\0';
-	return n;
-}
-
-int
-rune_isspace(Rune r){
-	switch(r){
-	case ' ':
-	case '\t':
-	case '\v':
-	case '\r':
-	case '\n':
-		return 1;
-	default:
-		return 0;
-	}
-}
-
+#include <rune.h>
 struct rune_range { Rune first, last; };
 static struct rune_range two_width[] = {
 	{ 0x1100,  0x115f},
@@ -319,8 +191,7 @@ static struct rune_range zero_width[] = {
 	{0x1e8d0, 0x1e8d6},
 };
 
-static int
-rune_is_in(struct rune_range *table, int start, int end, Rune r){
+static int rune_is_in(struct rune_range *table, int start, int end, Rune r){
 	int middle = (start + end)/2;
 	if(table[middle].first <= r && r <= table[middle].last)
 		return 1;
@@ -336,8 +207,7 @@ rune_is_in(struct rune_range *table, int start, int end, Rune r){
 
 #define nelem(a) sizeof(a)/sizeof(*a)
 
-int
-rune_width(Rune r){
+int rune_width(Rune r){
 	if(rune_is_in(zero_width, 0, nelem(zero_width)-1, r))
 		return 0;
 	if(rune_is_in(two_width, 0, nelem(two_width)-1, r))

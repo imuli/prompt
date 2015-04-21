@@ -30,4 +30,6 @@ int utf8s_runes(char *u, Runes *r);
 int rune_isspace(Rune r);
 int rune_width(Rune r);
 
+int log2rune(Rune r);
+
 #endif
