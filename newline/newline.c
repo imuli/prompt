@@ -181,7 +181,7 @@ history_shift(Rune c, void* f, int n){
 
 static void
 end(int n){
-	lines = 0;
+	if(line->buf->c == 0) lines = 0;
 }
 
 static void
