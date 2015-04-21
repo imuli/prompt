@@ -99,19 +99,8 @@ redraw_line_noecho(void){
 
 static void (*redraw_func)(void) = redraw_line;
 
-static int
-word_len(int dir){
-	Rune *r = line->buf->r;
-	int i = line->off;
-	if(dir < 0) i--;
-	for(; i>=0 && i<line->buf->c && rune_isspace(r[i]); i+=dir);
-	for(; i>=0 && i<line->buf->c && !rune_isspace(r[i]); i+=dir);
-	if(dir < 0) i++;
-	return i - line->off;
-}
-
 static void
-kill(int len){
+do_kill(int len){
 	if(!kill_roll) text_clear(yank);
 	kill_roll=2;
 	if(len < 0){
@@ -126,7 +115,7 @@ kill(int len){
 }
 
 static void
-shift(int n){
+do_shift(int n){
 	text_shift(line, n);
 }
 
@@ -136,7 +125,7 @@ append_character(Rune c){
 }
 
 static void
-insert_character(Rune c, intptr_t v){
+insert_character(Rune c, void* f, int v){
 	if(0xd800 <= c && c < 0xdc00) return;
 	text_insert(line, &c, 1);
 }
@@ -183,19 +172,16 @@ history_add(){
 }
 
 static void
-history_shift(Rune c, intptr_t n){
-	history_save();
-	history_advance(n);
+history_shift(Rune c, void* f, int n){
+	if(n){
+		history_save();
+		history_advance(n);
+	}
 	history_load();
 }
 
 static void
-history_this(Rune c, intptr_t v){
-	history_load();
-}
-
-static void
-flush_line(Rune c, intptr_t v){
+flush_line(Rune c, void* f, int v){
 	append_character(v);
 	cursor_shift(-cursor);
 	erase_line();
@@ -211,7 +197,7 @@ flush_line(Rune c, intptr_t v){
 }
 
 static void
-set_echo(Rune c, intptr_t enable){
+set_echo(Rune c, void* v, int enable){
 	if(!enable){
 		redraw_func = redraw_line_noecho;
 		cursor_shift(-cursor);
@@ -222,55 +208,58 @@ set_echo(Rune c, intptr_t enable){
 }
 
 static void
-shift_word(Rune c, intptr_t d){
-	shift(word_len(d));
-}
-
-static void
-shift_line(Rune c, intptr_t end){
-	shift(end*line->buf->c - line->off);
-}
-
-static void
-shift_char(Rune c, intptr_t d){
-	shift(d);
-}
-
-static void
-interrupt(Rune c, intptr_t v){
+interrupt(Rune c, void* f, int r){
 	text_clear(line);
-	flush_line(c, v);
+	flush_line(c, f, r);
 }
 
 static void
-delete_char(Rune c, intptr_t d){
-	text_delete(line, d);
+delete(Rune c, void* f, int d){
+	text_delete(line, (*(int(*)(int)) f)(d));
 }
 
 static void
-kill_line(Rune c, intptr_t end){
-	kill(end*line->buf->c - line->off);
+kill(Rune c, void* f, int d){
+	do_kill((*(int(*)(int)) f)(d));
 }
 
 static void
-kill_word(Rune c, intptr_t d){
-	kill(word_len(d));
+shift(Rune c, void* f, int d){
+	do_shift((*(int(*)(int)) f)(d));
 }
 
 static void
-kill_char(Rune c, intptr_t d){
-	kill(d);
-}
-
-static void
-insert_yank(Rune c, intptr_t v){
+insert_yank(Rune c, void* v, int n){
 	text_insert(line, yank->buf->r, yank->buf->c);
 }
 
 static Rune get_rune(void);
 static void
-insert_literal(Rune c, intptr_t v){
-	insert_character(get_rune(), v);
+insert_literal(Rune c, void* f, int v){
+	insert_character(get_rune(), f, v);
+}
+
+/* distance functions */
+
+static int
+chars(int n){
+	return n;
+}
+
+static int
+words(int dir){
+	Rune *r = line->buf->r;
+	int i = line->off;
+	if(dir < 0) i--;
+	for(; i>=0 && i<line->buf->c && rune_isspace(r[i]); i+=dir);
+	for(; i>=0 && i<line->buf->c && !rune_isspace(r[i]); i+=dir);
+	if(dir < 0) i++;
+	return i - line->off;
+}
+
+static int
+to_the(int end){
+	return end*line->buf->c - line->off;
 }
 
 enum {
@@ -303,64 +292,65 @@ enum {
 /* keyboard configuration */
 struct keyconfig {
 	Rune r;
-	void (*func)(Rune, intptr_t);
-	intptr_t v;
+	void (*func)(Rune, void*, int);
+	int n;
+	void *f;
 };
 static struct keyconfig keys_norm[], keys_ctrl[], keys_meta[],
 			*mode = keys_norm;
 
 static void
-set_mode(Rune c, intptr_t k){
+set_mode(Rune c, void *k, int n){
 	mode = (struct keyconfig *)k;
 }
 
 static struct keyconfig
 keys_norm[] = {
-	{0x7f,	delete_char, -1},
-	{Del,	delete_char, 1},
+	{0x7f,	delete, -1, chars},
+	{Del,	delete, 1, chars},
 	{Up,	history_shift, -1},
 	{Down,	history_shift, 1},
-	{Right,	shift_char, 1},
-	{Left,	shift_char, -1},
-	{Home,	shift_line, 0},
-	{End,	shift_line, 1},
-	{Ctrl,	set_mode, (intptr_t) keys_ctrl},
-	{Meta,	set_mode, (intptr_t) keys_meta},
+	{Right,	shift, 1, chars},
+	{Left,	shift, -1, chars},
+	{Home,	shift, 0, to_the},
+	{End,	shift, 1, to_the},
+	{Ctrl,	set_mode, 0, keys_ctrl},
+	{Meta,	set_mode, 0, keys_meta},
 	{0, insert_character},
 };
 
 static struct keyconfig
 keys_ctrl[] = {
-	{'a', shift_line, 0},
-	{'b', shift_char, -1},
+	{'a', shift, 0, to_the},
+	{'b', shift, -1, chars},
 	{'c', interrupt, '\x03'},
 	{'d', flush_line, '\x04'},
-	{'e', shift_line, 1},
-	{'f', shift_char, 1},
-	{'h', kill_char, -1},
-	{'k', kill_line, 1},
+	{'e', shift, 1, to_the},
+	{'f', shift, 1, chars},
+	{'h', kill, -1, chars},
+	{'k', kill, 1, to_the},
 	{'m', flush_line, '\x0a'},	/* Return */
 	{'n', history_shift, 1},
 	{'p', history_shift, -1},
 	{'q', set_echo, 1},
 	{'s', set_echo, 0},
-	{'u', kill_line, 0},
+	{'u', kill, 0, to_the},
 	{'v', insert_literal},
 	{'y', insert_yank},
-	{'w', kill_word, -1},
-	{'z', history_this},
-	{Up,	shift_line, 0},
-	{Down,	shift_line, -1},
-	{Right,	shift_word, 1},
-	{Left,	shift_word, -1},
-	{0, set_mode, (intptr_t) keys_norm},
+	{'w', kill, -1, words},
+	{'z', history_shift, 0},
+	{Up,	history_shift, 0},
+	{Down,	history_shift, -1},
+	{Right,	shift, 1, words},
+	{Left,	shift, -1, words},
+	{0, set_mode, 0, keys_norm},
 };
 
 static struct keyconfig
 keys_meta[] = {
-	{'b', shift_word, -1},
-	{'f', shift_word, 1},
-	{0, set_mode, (intptr_t) keys_norm},
+	{'b', shift, -1, words},
+	{'f', shift, 1, words},
+	{0, set_mode, 0, keys_norm},
 };
 
 /* input handling */
@@ -481,8 +471,8 @@ handle_rune(Rune r){
 	}else{
 		for(k=mode; k->r!=0; k++)
 			if(k->r == r) break;
-		set_mode(r, (intptr_t) keys_norm);
-		k->func(r, k->v);
+		set_mode(r, keys_norm, 0);
+		k->func(r, k->f, k->n);
 		if(mode == keys_norm)
 			kill_roll >>= 1;
 	}
