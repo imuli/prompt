@@ -1,15 +1,23 @@
 objmap=$(patsubst %.c,bin/%.o,$(subst /,-,$(1)))
 objects=$(call objmap,$(sources))
+libraries=$(patsubst lib%,bin/lib%.a,$(wildcard lib*))
 targets=$(patsubst %/main.c,bin/%,$(wildcard */main.c))
 sources=$(wildcard */*.c)
+CFLAGS+=$(patsubst bin/%.a,-I%,$(libraries))
 
 all: $(targets)
 
 define targetrule
-$(1): $(filter $(1)-%,$(objects)) | bin
-	cc -o $$@ $$^ $$(CFLAGS) $(shell cat $(notdir $(1))/ldflags 2>/dev/null)
+$(1): $(filter $(1)-%,$(objects)) $(libraries) | bin
+	cc -o $$@ $$^ $(shell cat $(notdir $(1))/ldflags 2>/dev/null)
 endef
 $(foreach target,$(targets),$(eval $(call targetrule,$(target))))
+
+define libraryrule
+$(1): $(filter $(patsubst %.a,%,$(1))-%,$(objects)) | bin
+	ar -rcs $$@ $$^
+endef
+$(foreach library,$(libraries),$(eval $(call libraryrule,$(library))))
 
 define objrule
 $(call objmap,$(1)): $(1) | bin
