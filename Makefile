@@ -20,10 +20,14 @@ endef
 $(foreach library,$(libraries),$(eval $(call libraryrule,$(library))))
 
 define objrule
-$(call objmap,$(1)): $(1) | bin
+$(call objmap,$(1)): $(1) | bin submodules
 	cc -c -o $$@ $$< $$(CFLAGS)
 endef
 $(foreach source,$(sources),$(eval $(call objrule,$(source))))
+
+submodules: $(patsubst %,%/.git,$(wildcard lib*))
+%/.git: %
+	git submodule update --init $<
 
 manpages=$(patsubst %.ronn,%,$(wildcard */*.ronn))
 doc: README.md $(manpages)
