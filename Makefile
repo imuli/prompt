@@ -31,7 +31,7 @@ doc: README.md $(manpages)
 %.1: %.1.ronn
 	ronn -r $<
 
-README.md: $(wildcard */*.ronn)
+README.md: $(wildcard $(patsubst bin/%,%/*.ronn,$(targets)))
 	cat `echo $^ | tac -s" "` > $@
 
 bin:
