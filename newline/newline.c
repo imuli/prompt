@@ -61,7 +61,6 @@ static char display_intro_normal[] = "\x1b[0m";
 enum { SPECIAL_MAX = sizeof(display_intro_replaced) + sizeof(display_intro_normal) };
 static int
 display_utf8_rune(char *u, Rune r){
-	static int replaced;
 	Rune d = display_rune(r);
 	char *ue;
 	if(d != r){
