@@ -1,4 +1,4 @@
-prompt(1) -- consistant line editing
+prompt(1) -- consistent line editing
 ====================================
 
 ## SYNOPSIS
@@ -47,7 +47,7 @@ The number of lines to copy, _n_, must come last. It defaults to **1** and may b
 
 ## COMMANDS
 
-Below, `C-x` indicates Control-x, likewise `M-x` for Alt-x (Or more preciesly, `ESC x`).
+Below, `C-x` indicates Control-x, likewise `M-x` for Alt-x (Or more precisely, `ESC x`).
 
 ### Movement:
 
@@ -60,7 +60,7 @@ Below, `C-x` indicates Control-x, likewise `M-x` for Alt-x (Or more preciesly, `
 
 ### Delete, Kill, and Yank:
 
-Delete and Kill both remove characters from the line, however characters removed with a Kill can be returned in a different place with a Yank. Multiple Kills in a row will accumulate and may be Yanked all togother.
+Delete and Kill both remove characters from the line, however characters removed with a Kill can be returned in a different place with a Yank. Multiple Kills in a row will accumulate and may be Yanked all together.
 
 * Delete backward one character. `Backspace`
 * Delete forward one character. `Delete`
