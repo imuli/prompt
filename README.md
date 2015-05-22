@@ -45,6 +45,9 @@ The number of lines to copy, _n_, must come last. It defaults to **1** and may b
 * `--pty`
 	Output a stream suitable for feeding to a pty master. (Don't act on `C-d` or `C-c`.)
 
+* `--history _filename_`
+	Load and save history from _filename_ instead of `~/.newline_history`.
+
 ## COMMANDS
 
 Below, `C-x` indicates Control-x, likewise `M-x` for Alt-x (Or more precisely, `ESC x`).

@@ -37,17 +37,27 @@ setsignals(void){
 	sigaction(SIGUSR2, &sa, NULL);
 }
 
+void
+set_history_file(void){
+	char file[] = "/.newline_history";
+	char *home = getenv("HOME");
+	history_file = malloc(strlen(home) + sizeof(file));
+	sprintf(history_file, "%s%s", home, file);
+}
+
 int
 main(int argc, char** argv){
 	int i;
 	for(i=1;i<argc;i++){
 		if(argv[i][0] == '-'){
 			if(strcmp(argv[i], "--pty") == 0)	pty_mode = 1;
+			if(strcmp(argv[i], "--history") == 0)	history_file = argv[++i];
 		} else {
 			lines = strtod(argv[i], NULL);
 		}
 	}
 	if(lines <= 0) return 1;
+	if(history_file == NULL) set_history_file();
 	setsignals();
 
 	if(tcgetattr(0, &termp) == 0){

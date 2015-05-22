@@ -18,6 +18,26 @@ Text line;
 Text yank;
 int cursor;
 int kill_roll;
+char *history_file;
+
+static Rune
+fget_rune(FILE* f){
+	static char utf[UTF8_MAX + 1];
+	static int utflen;
+	int len = 0;
+	Rune r = IncRune;
+
+	if(utflen)
+		len = rune_of_utf8(&r, utf);
+	while(r == IncRune && len == utflen){
+		if((utf[utflen] = getc(f)) == EOF) return EOF;
+		utf[++utflen]='\0';
+		len = rune_of_utf8(&r, utf);
+	}
+	utflen -= len;
+	memmove(utf, utf+len, utflen+1);
+	return r;
+}
 
 static int
 stdwrite(FILE* f, char *str, int len){
@@ -73,11 +93,11 @@ display_utf8_of_rune(char *u, Rune r){
 }
 
 static void
-render(FILE* f, int (*utf8_from_rune)(char *, Rune)){
+render(FILE* f, const Runes* src, int (*utf8_from_rune)(char *, Rune)){
 	int i, len;
 	char buf[UTF8_MAX+SPECIAL_MAX];
 	for(i=0;i<line->buf->c;i++){
-		len = (*utf8_from_rune)(buf, line->buf->r[i]);
+		len = (*utf8_from_rune)(buf, src->r[i]);
 		stdwrite(f, buf, len);
 	}
 }
@@ -85,7 +105,7 @@ render(FILE* f, int (*utf8_from_rune)(char *, Rune)){
 static void
 redraw_line(void){
 	cursor_shift(-cursor);
-	render(stderr, display_utf8_of_rune);
+	render(stderr, line->buf, display_utf8_of_rune);
 	cursor += display_width(line, 0, line->buf->c);
 	erase_line();
 	cursor_shift(-display_width(line, line->off, line->buf->c));
@@ -130,7 +150,7 @@ insert_character(Rune c, void* f, int v){
 }
 
 Runes** hist;
-int hist_cur, hist_len, hist_sz;
+int hist_cur, hist_len, hist_sz, hist_first;
 
 static void
 history_save(){
@@ -180,6 +200,38 @@ history_shift(Rune c, void* f, int n){
 }
 
 static void
+history_dump(){
+	FILE *f;
+	char len[UTF8_MAX];
+	int i;
+	f = fopen(history_file, "a");
+	if(!f) return;
+	for(i = hist_first; i < hist_len; i++){
+		if(hist[i] == NULL) continue; // FIXME should we save null entries?
+		stdwrite(f, len, utf8_of_rune(len, hist[i]->c));
+		render(f, hist[i], utf8_of_rune);
+	}
+	fclose(f);
+}
+
+static void
+history_restore(){
+	FILE *f;
+	int len, i;
+	if((f = fopen(history_file, "r")) == NULL) return;
+	while(1){
+		text_clear(line);
+		if((len = fget_rune(f)) == EOF) break;
+		for(i = 0; i<len; i++)
+			insert_character(fget_rune(f), NULL, 0);
+		history_save();
+		history_add();
+		hist_first++;
+	}
+	fclose(f);
+}
+
+static void
 end(int n){
 	if(line->buf->c == 0) lines = 0;
 }
@@ -194,12 +246,12 @@ flush_line(Rune c, void* f, int v){
 	cursor_shift(-cursor);
 	erase_line();
 	fflush(stderr);
-	render(stdout, utf8_of_rune);
+	render(stdout, line->buf, utf8_of_rune);
 	fflush(stdout);
-	if(--lines <= 0) exit(0);
 	if(pty_mode || f == NULL) line->buf->c--; /* FIXME! store history without the flushing character! */
 	hist_cur = hist_len - 1;
 	history_save();
+	if(--lines <= 0) exit(0);
 	history_add();
 	history_load();
 }
@@ -493,6 +545,8 @@ init(void){
 	atexit(&newline_cleanup);
 	setvbuf(stderr, NULL, _IOFBF, BUFSIZ);
 	history_add();
+	history_restore();
+	atexit(&history_dump);
 	return 1;
 }
 
