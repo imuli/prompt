@@ -1,4 +1,4 @@
-prompt(1) -- consistant line editing
+prompt(1) -- consistent line editing
 ====================================
 
 ## SYNOPSIS
